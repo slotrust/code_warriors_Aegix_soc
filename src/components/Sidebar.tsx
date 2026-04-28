@@ -8,12 +8,11 @@ const navItems = [
   { id: 'edr', label: 'Endpoint EDR', icon: ShieldCheck },
   { id: 'processes', label: 'Processes', icon: Cpu },
   { id: 'network', label: 'Network', icon: Network },
-  { id: 'alerts', label: 'Alerts', icon: Bell, badge: 1 },
+  { id: 'alerts', label: 'Alerts', icon: Bell, badge: 2 },
   { id: 'logs', label: 'Logs', icon: FileText },
   { id: 'forensics', label: 'Forensics', icon: Search },
   { id: 'chatbot', label: 'Chatbot', icon: MessageSquare },
   { id: 'ips', label: 'IPS', icon: ShieldAlert },
-  { id: 'users', label: 'Users', icon: Users },
 ];
 
 export function Sidebar({ currentView, setView }: { currentView: string; setView: (id: string) => void }) {
@@ -25,19 +24,23 @@ export function Sidebar({ currentView, setView }: { currentView: string; setView
   };
 
   return (
-    <aside className="w-64 h-screen border-r border-[#00e5c0]/10 bg-[#11151e] flex flex-col justify-between shrink-0 relative z-20 font-sans">
+    <aside className="w-64 h-screen border-r border-[#00e5c0]/10 bg-[#0c1017] flex flex-col justify-between shrink-0 relative z-20 font-sans">
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="p-6">
-           <div className="font-display font-black text-2xl text-[#f3f4f6] tracking-tight flex items-center gap-2">
-             <Shield className="text-[#00e5c0] w-6 h-6" />
-             <div>Aegix<span className="text-[#00e5c0]">Chain</span></div>
-           </div>
-           <div className="font-mono text-[9px] tracking-[3px] text-[#2a5060] mt-1 pl-8 uppercase">
-             Cybersecurity
+           <div className="font-display font-black text-2xl tracking-tight flex items-center gap-3">
+             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 drop-shadow-[0_0_8px_rgba(0,229,192,0.8)]">
+                <path d="M12 2L2 7.77778L2 19.3333L12 25.1111L22 19.3333L22 7.77778L12 2Z" stroke="#00e5c0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx="12" cy="13.5" r="3" fill="#00e5c0"/>
+                <path d="M12 5L12 10.5M4.5 9L9.5 12M19.5 9L14.5 12M4.5 18L9.5 15M19.5 18L14.5 15M12 22L12 16.5" stroke="#00e5c0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+             </svg>
+             <div className="flex items-center">
+               <span className="text-[#00e5c0]">Aegix</span>
+               <span className="text-[#7f77dd]">Chain</span>
+             </div>
            </div>
         </div>
         
-        <nav className="px-4 space-y-1 mt-2">
+        <nav className="px-4 space-y-2 mt-4">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentView === item.id;
@@ -46,18 +49,18 @@ export function Sidebar({ currentView, setView }: { currentView: string; setView
               <button
                 key={item.id}
                 onClick={() => setView(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-3 rounded-lg transition-all duration-200 ${
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-300 font-mono ${
                   isActive 
-                    ? 'bg-[#181d28] text-white border border-[#00e5c0]/20 shadow-[0_0_15px_rgba(0,229,192,0.05)]' 
-                    : 'text-[#9ca3af] hover:text-white hover:bg-[#181d28] border border-transparent'
+                    ? 'bg-gradient-to-r from-[#00e5c0]/20 to-transparent border-l-4 border-[#00e5c0] text-white shadow-[0_0_15px_rgba(0,229,192,0.05)]' 
+                    : 'text-[#9ca3af] hover:text-white hover:bg-white/5 border-l-4 border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <Icon size={18} className={isActive ? 'text-[#00e5c0]' : 'text-[#9ca3af]'} />
-                  <span className="font-medium text-[0.85rem]">{item.label}</span>
+                  <span className={`font-semibold tracking-wide text-sm ${isActive ? 'text-white' : ''}`}>{item.label}</span>
                 </div>
                 {item.badge && (
-                  <span className="bg-[#ff4757]/10 text-[#ff4757] text-[10px] font-bold px-2 py-0.5 rounded border border-[#ff4757]/20 font-mono">
+                  <span className="bg-[#ff4757]/10 text-[#ff4757] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#ff4757]/30">
                     {item.badge}
                   </span>
                 )}
@@ -67,22 +70,9 @@ export function Sidebar({ currentView, setView }: { currentView: string; setView
         </nav>
       </div>
 
-      <div className="p-4 border-t border-white/5 bg-[#080b10]">
-         <div className="flex items-center justify-between px-3 py-3 rounded bg-[#181d28] border border-white/10 mb-3">
-           <div className="flex flex-col">
-             <div className="text-[0.75rem] text-[#00e5c0] font-mono tracking-wider uppercase font-bold text-left">Admin</div>
-             <div className="text-[0.65rem] text-[#9ca3af] font-mono mt-0.5 truncate max-w-[120px]">
-               {user?.email || 'admin@aegixchain.io'}
-             </div>
-           </div>
-         </div>
-
-         <button 
-           onClick={handleSignOut}
-           className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-[#9ca3af] hover:text-white hover:bg-white/5 rounded transition-colors font-mono"
-         >
-           <LogOut size={16} /> SIGN OUT
-         </button>
+      <div className="p-6 shrink-0 flex items-center gap-2">
+         <div className="w-2 h-2 rounded-full bg-[#00e5c0] shadow-[0_0_8px_#00e5c0] animate-pulse"></div>
+         <span className="text-[#00e5c0] text-[10px] font-mono font-bold tracking-[2px] uppercase">System Protected</span>
       </div>
     </aside>
   );

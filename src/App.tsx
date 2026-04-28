@@ -35,7 +35,6 @@ export default function App() {
       case 'alerts':
       case 'forensics':
       case 'ips':
-      case 'users':
       case 'behavioral':
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-4 animate-in fade-in">
@@ -59,6 +58,8 @@ export default function App() {
           {renderContent()}
         </div>
       </main>
+      
+      {/* Floating Chatbot Assistant */}
       <Chatbot />
     </div>
   );

@@ -159,11 +159,56 @@ export function EndpointEDR() {
             <AlertTriangle size={14} /> Execution Blocks
           </button>
           <button className="flex items-center gap-2 text-[#9ca3af] hover:text-white font-mono text-[11px] uppercase tracking-widest pb-3 border-b-2 border-transparent hover:border-white/20 px-2 transition-colors">
-            <AlertTriangle size={14} /> DefectDoJo Scanners
+            <SearchCode size={14} /> DefectDoJo Scanners
           </button>
           <button className="flex items-center gap-2 text-[#9ca3af] hover:text-white font-mono text-[11px] uppercase tracking-widest pb-3 border-b-2 border-transparent hover:border-white/20 px-2 transition-colors">
             <CheckCircle2 size={14} /> Patch Reports
           </button>
+        </div>
+
+        <div className="bg-black/40 border border-white/5 rounded-lg overflow-hidden mt-6">
+          <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+            <thead className="bg-[#0a0f16] text-[10px] font-bold text-[#9ca3af] uppercase tracking-widest border-b border-white/5">
+              <tr>
+                <th className="py-4 px-6 font-mono font-medium">TIMESTAMP</th>
+                <th className="py-4 px-6 font-mono font-medium">HOST ENDPOINT</th>
+                <th className="py-4 px-6 font-mono font-medium">PROCESS BLOCKED</th>
+                <th className="py-4 px-6 font-mono font-medium text-right">DEFENSE ACTION</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5 font-mono text-white/90">
+              <tr className="hover:bg-white/5 transition-colors cursor-pointer group">
+                <td className="py-4 px-6 text-[#9ca3af] text-xs">8:12:05 AM</td>
+                <td className="py-4 px-6 text-[#00e5c0] text-xs">local-node-01</td>
+                <td className="py-4 px-6 text-white text-xs">/usr/bin/bash (Reverse Shell Attempt)</td>
+                <td className="py-4 px-6 text-right">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#ff4757]/30 text-[#ff4757] text-[10px] font-bold uppercase tracking-wider bg-[#ff4757]/10 w-max ml-auto">
+                    <ShieldAlert size={12} /> KILLED
+                  </span>
+                </td>
+              </tr>
+              <tr className="hover:bg-white/5 transition-colors cursor-pointer group">
+                <td className="py-4 px-6 text-[#9ca3af] text-xs">7:45:22 AM</td>
+                <td className="py-4 px-6 text-[#00e5c0] text-xs">local-node-01</td>
+                <td className="py-4 px-6 text-white text-xs">/tmp/malware.sh (Sigma Rule Match)</td>
+                <td className="py-4 px-6 text-right">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#ff4757]/30 text-[#ff4757] text-[10px] font-bold uppercase tracking-wider bg-[#ff4757]/10 w-max ml-auto">
+                    <ShieldAlert size={12} /> KILLED
+                  </span>
+                </td>
+              </tr>
+              <tr className="hover:bg-white/5 transition-colors cursor-pointer group">
+                <td className="py-4 px-6 text-[#9ca3af] text-xs">6:30:10 AM</td>
+                <td className="py-4 px-6 text-[#00e5c0] text-xs">local-node-01</td>
+                <td className="py-4 px-6 text-white text-xs">/bin/nc (Unauthorized Netcat Listener)</td>
+                <td className="py-4 px-6 text-right">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#ff4757]/30 text-[#ff4757] text-[10px] font-bold uppercase tracking-wider bg-[#ff4757]/10 w-max ml-auto">
+                    <ShieldAlert size={12} /> KILLED
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
