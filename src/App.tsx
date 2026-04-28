@@ -1,3 +1,4 @@
+import { safeStorage } from "./utils/storage";
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -13,6 +14,8 @@ import UserManagement from './components/UserManagement';
 import IPSManagement from './components/IPSManagement';
 import AegixBrain from './components/AegixBrain';
 import EndpointEDR from './components/EndpointEDR';
+import BehavioralAI from './components/BehavioralAI';
+import MultiAgentDashboard from './components/MultiAgentDashboard';
 import { RefreshCw, MessageSquare, X } from 'lucide-react';
 import { api } from './api/client';
 import { motion, AnimatePresence } from 'motion/react';
@@ -23,11 +26,19 @@ import { signOut } from 'firebase/auth';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import AegixLogo from './components/AegixLogo';
+import VoiceAssistant from './components/VoiceAssistant';
 
 export default function App() {
   const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('soc_user');
-    return saved ? JSON.parse(saved) : null;
+    const saved = safeStorage.getItem('soc_user');
+    if (!saved || saved === 'undefined' || saved === 'null') return null;
+    try {
+      return JSON.parse(saved);
+    } catch (e) {
+      console.warn("Failed to parse soc_user", e);
+      safeStorage.removeItem('soc_user');
+      return null;
+    }
   });
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedIncident, setSelectedIncident] = useState(null);
@@ -41,19 +52,30 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   useEffect(() => {
+    if (!auth) {
+      console.warn("Firebase auth not initialized, skipping auth listener");
+      setIsAuthReady(true);
+      return;
+    }
     const unsubscribe = auth.onIdTokenChanged(async (firebaseUser) => {
       setIsAuthReady(true);
       if (firebaseUser) {
         try {
           const token = await firebaseUser.getIdToken();
-          localStorage.setItem('soc_token', token);
+          safeStorage.setItem('soc_token', token);
         } catch (e) {
           console.error("Failed to get ID token", e);
         }
 
-        // Sync local user state with Firebase if logged in
-        const saved = localStorage.getItem('soc_user');
-        const localUser = saved ? JSON.parse(saved) : null;
+        const saved = safeStorage.getItem('soc_user');
+        let localUser = null;
+        try {
+            if (saved && saved !== 'undefined' && saved !== 'null') {
+                localUser = JSON.parse(saved);
+            }
+        } catch (e) {
+            console.warn('Failed to parse soc_user', e);
+        }
         
         if (localUser && localUser.id === firebaseUser.uid) {
           setUser({
@@ -69,16 +91,23 @@ export default function App() {
             role: 'analyst',
             isFirebase: true
           };
-          localStorage.setItem('soc_user', JSON.stringify(appUser));
+          safeStorage.setItem('soc_user', JSON.stringify(appUser));
           setUser(appUser);
         }
       } else {
         // Only clear if the current user was a Firebase user
-        const saved = localStorage.getItem('soc_user');
-        const localUser = saved ? JSON.parse(saved) : null;
+        const saved = safeStorage.getItem('soc_user');
+        let localUser = null;
+        try {
+            if (saved && saved !== 'undefined' && saved !== 'null') {
+                localUser = JSON.parse(saved);
+            }
+        } catch (e) {
+             console.warn('Failed to parse soc_user', e);
+        }
         if (localUser && localUser.isFirebase) {
-          localStorage.removeItem('soc_token');
-          localStorage.removeItem('soc_user');
+          safeStorage.removeItem('soc_token');
+          safeStorage.removeItem('soc_user');
           setUser(null);
         }
       }
@@ -98,7 +127,7 @@ export default function App() {
 
     const fetchAlerts = async () => {
       try {
-        const res = await api.getAlerts({ acknowledged: false });
+        const res = await api.getAlerts({ acknowledged: false, severity: 'Critical' });
         if (Array.isArray(res.data)) {
           setAlertCount(res.data.length);
         }
@@ -113,8 +142,8 @@ export default function App() {
     evtSource.addEventListener('new_alert', (e) => {
       try {
         const alert = JSON.parse(e.data);
-        setAlertCount(prev => prev + 1);
         if (alert.severity === 'Critical') {
+          setAlertCount(prev => prev + 1);
           toast.error(`CRITICAL THREAT DETECTED: ${alert.reason}`, {
             duration: 8000,
             position: 'top-right',
@@ -140,8 +169,8 @@ export default function App() {
 
   useEffect(() => {
     const handleUnauthorized = () => {
-      localStorage.removeItem('soc_token');
-      localStorage.removeItem('soc_user');
+      safeStorage.removeItem('soc_token');
+      safeStorage.removeItem('soc_user');
       setUser(null);
     };
     window.addEventListener('soc_unauthorized', handleUnauthorized);
@@ -150,12 +179,14 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      if (auth) {
+        await signOut(auth);
+      }
     } catch (err) {
       console.error("Firebase sign out error", err);
     }
-    localStorage.removeItem('soc_token');
-    localStorage.removeItem('soc_user');
+    safeStorage.removeItem('soc_token');
+    safeStorage.removeItem('soc_user');
     setUser(null);
   };
 
@@ -246,7 +277,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-soc-bg text-soc-text flex dark">
-      <Toaster />
+      <Toaster position="top-right" toastOptions={{ style: { fontSize: "12px", padding: "8px" } }} />
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} alertCount={alertCount} userRole={user.role} />
       
       <main className="flex-1 ml-64 flex flex-col min-h-screen relative">
@@ -372,7 +403,7 @@ export default function App() {
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="fixed bottom-24 right-8 w-96 h-[500px] z-50 shadow-2xl"
+            className="fixed bottom-24 right-8 w-96 h-[500px] z-[60] shadow-2xl"
           >
             <Chatbot 
               contextData={chatContextData} 
@@ -384,6 +415,9 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Voice Assistant globally mounted so connection isn't lost on tab change, but UI hidden outside chatbot tab */}
+      <VoiceAssistant setActiveTab={setActiveTab} isHidden={activeTab !== 'chatbot' && !isChatFloatingOpen} />
 
       {/* FAB */}
       {activeTab !== 'chatbot' && (
@@ -408,4 +442,3 @@ export default function App() {
     </div>
   );
 }
-
