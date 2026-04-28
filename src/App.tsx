@@ -4,10 +4,21 @@ import { Dashboard } from './components/Dashboard';
 import { EndpointEDR } from './components/EndpointEDR';
 import { ThreatMemory } from './components/ThreatMemory';
 import { Chatbot } from './components/Chatbot';
+import { Login } from './components/Login';
+import { useAuth } from './lib/AuthContext';
 import { BrainCircuit, Activity } from 'lucide-react';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div className="flex h-screen items-center justify-center bg-[#0B0D17] text-[#06B6D4]">Loading AegixChain...</div>;
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   const renderContent = () => {
     switch (currentView) {

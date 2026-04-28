@@ -1,128 +1,295 @@
 import { useState, useEffect } from 'react';
-import { Activity, ShieldAlert, Cpu, Network } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-// Mock Network Data
-const generateTrafficData = () => {
-  return Array.from({ length: 20 }, (_, i) => ({
-    time: `-${20 - i}m`,
-    inbound: Math.floor(Math.random() * 500) + 200,
-    outbound: Math.floor(Math.random() * 300) + 100,
-  }));
-};
+import { Activity, ShieldAlert, Cpu, Network, BrainCircuit, RefreshCw, Filter, Settings } from 'lucide-react';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
 export function Dashboard() {
-  const [trafficData, setTrafficData] = useState(generateTrafficData());
-  const [cpuUsage, setCpuUsage] = useState(34);
-  const [memUsage, setMemUsage] = useState(62);
+  const [sysinfo, setSysinfo] = useState<any>(null);
+  const [processes, setProcesses] = useState<any[]>([]);
+  const [timeStr, setTimeStr] = useState('');
 
-  // Simulate real-time updates
+  // Fetch real system info
+  const fetchSysInfo = async () => {
+    try {
+      const res = await fetch('/api/sysinfo');
+      const data = await res.json();
+      setSysinfo(data);
+    } catch (e) {}
+  };
+
+  const fetchProcesses = async () => {
+    try {
+      const res = await fetch('/api/processes');
+      const data = await res.json();
+      setProcesses(data);
+    } catch (e) {}
+  };
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTrafficData(prev => {
-        const newData = [...prev.slice(1)];
-        newData.push({
-          time: 'now',
-          inbound: Math.floor(Math.random() * 500) + 200,
-          outbound: Math.floor(Math.random() * 300) + 100,
-        });
-        return newData;
-      });
-      setCpuUsage(Math.floor(Math.random() * 15) + 30);
-      setMemUsage(Math.floor(Math.random() * 10) + 60);
-    }, 3000);
-    return () => clearInterval(interval);
+    fetchSysInfo();
+    fetchProcesses();
+    const int1 = setInterval(fetchSysInfo, 3000);
+    const int2 = setInterval(fetchProcesses, 10000);
+    
+    const timeInt = setInterval(() => {
+      const d = new Date();
+      setTimeStr(d.toUTCString().replace('GMT', 'UTC'));
+    }, 1000);
+
+    return () => {
+      clearInterval(int1);
+      clearInterval(int2);
+      clearInterval(timeInt);
+    };
   }, []);
 
+  // Event Distribution mock data for Pie chart since we don't have real "login" events in a hackathon demo easily
+  const eventData = [
+    { name: 'API REQUEST', value: 400, color: '#06B6D4' },
+    { name: 'FILE CREATE', value: 300, color: '#8B5CF6' },
+    { name: 'FILE MODIFY', value: 300, color: '#10B981' },
+    { name: 'LOGIN SUCCESS', value: 200, color: '#EF4444' },
+    { name: 'PROCESS START', value: 100, color: '#F59E0B' },
+  ];
+
+  // Bar chart data
+  const loginData = [
+    { time: '00:00', total: 10, anomaly: 0 },
+    { time: '04:00', total: 20, anomaly: 2 },
+    { time: '05:00', total: 1500, anomaly: 50 },  // Spikey
+    { time: '06:00', total: 300, anomaly: 10 },
+    { time: '08:00', total: 40, anomaly: 0 },
+    { time: '12:00', total: 30, anomaly: 0 },
+    { time: '16:00', total: 50, anomaly: 0 },
+    { time: '20:00', total: 20, anomaly: 0 },
+  ];
+
   return (
-    <div className="p-8 space-y-6 animate-in fade-in duration-500">
-      <header className="flex justify-between items-end">
-        <div>
-          <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Operations Control Center</h2>
-          <p className="text-slate-400 text-sm mt-1">Real-time facility telemetry and active threat vectors.</p>
+    <div className="p-8 space-y-6 animate-in fade-in duration-500 max-w-7xl mx-auto text-slate-300">
+      <header className="flex justify-between items-center bg-[#0B0D17] sticky top-0 z-10 py-4 border-b border-white/5">
+        <div className="flex items-center gap-6">
+          <h2 className="text-2xl font-bold text-white tracking-wide">Dashboard</h2>
+          <div className="flex items-center gap-2 text-[#06B6D4] text-sm font-mono tracking-wider">
+            <div className="w-2 h-2 rounded-full bg-[#06B6D4] shadow-[0_0_8px_#06B6D4] animate-pulse"></div>
+            {timeStr}
+          </div>
         </div>
-        <div className="flex gap-4">
-          <div className="glass-panel px-4 py-2 flex items-center gap-3">
-            <Cpu size={16} className="text-[#06B6D4]" />
-            <div className="text-sm">
-              <span className="text-slate-400">CPU</span>
-              <span className="ml-2 font-mono text-white">{cpuUsage}%</span>
-            </div>
-          </div>
-          <div className="glass-panel px-4 py-2 flex items-center gap-3">
-            <Network size={16} className="text-[#A855F7]" />
-            <div className="text-sm">
-              <span className="text-slate-400">MEM</span>
-              <span className="ml-2 font-mono text-white">{memUsage}%</span>
-            </div>
-          </div>
+        
+        <div className="flex items-center gap-6">
+           <RefreshCw size={18} className="text-slate-400 cursor-pointer hover:text-white" />
+           <div className="flex items-center gap-3">
+             <div className="text-right">
+               <div className="text-white font-bold text-sm">admin</div>
+               <div className="text-slate-500 text-[10px] uppercase tracking-widest font-bold">Role: Admin</div>
+             </div>
+             <div className="w-10 h-10 rounded-full border border-[#06B6D4] bg-[#06B6D4]/10 flex items-center justify-center text-[#06B6D4] font-bold shadow-[inset_0_0_10px_rgba(6,182,212,0.2)]">
+               AD
+             </div>
+           </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* Network Traffic Chart */}
-        <div className="col-span-2 glass-panel p-5 h-80 flex flex-col">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity className="text-[#06B6D4]" size={18} />
-            <h3 className="font-semibold text-slate-200 uppercase tracking-wide text-sm">Network Traffic Anomalies</h3>
+      {/* Quick Stats */}
+      {sysinfo && (
+        <div className="grid grid-cols-4 gap-4">
+          <div className="glass-panel p-5 relative overflow-hidden">
+             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#06B6D4] to-transparent opacity-50"></div>
+             <div className="flex justify-between items-start mb-2">
+               <Activity className="text-[#06B6D4]" size={20} />
+               <span className="text-[10px] font-bold text-[#06B6D4] bg-[#06B6D4]/10 px-2 py-1 rounded border border-[#06B6D4]/20">+12%</span>
+             </div>
+             <div className="text-3xl font-black text-white uppercase tracking-tighter mt-4 flex items-end gap-1">
+               {Math.round(sysinfo.cpu || 0)}<span className="text-xs text-slate-500 mb-1"> %</span>
+             </div>
+             <div className="text-xs text-slate-400 font-bold tracking-widest uppercase mt-1">CPU Load</div>
           </div>
-          <div className="flex-1 w-full relative">
+
+          <div className="glass-panel p-5 relative overflow-hidden">
+             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#8B5CF6] to-transparent opacity-50"></div>
+             <div className="flex justify-between items-start mb-2">
+               <BrainCircuit className="text-[#8B5CF6]" size={20} />
+               <span className="text-[10px] font-bold text-[#8B5CF6] bg-[#8B5CF6]/10 px-2 py-1 rounded border border-[#8B5CF6]/20">GROWING</span>
+             </div>
+             <div className="text-3xl font-black text-white uppercase tracking-tighter mt-4 flex items-end gap-1">
+               {processes.length}<span className="text-xs text-slate-500 mb-1"> UNITS</span>
+             </div>
+             <div className="text-xs text-slate-400 font-bold tracking-widest uppercase mt-1">Active Processes</div>
+          </div>
+
+          <div className="glass-panel p-5 relative overflow-hidden">
+             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#10B981] to-transparent opacity-50"></div>
+             <div className="flex justify-between items-start mb-2">
+               <Network className="text-[#10B981]" size={20} />
+               <span className="text-[10px] font-bold text-[#10B981] bg-[#10B981]/10 px-2 py-1 rounded border border-[#10B981]/20">ACTIVE</span>
+             </div>
+             <div className="text-3xl font-black text-white uppercase tracking-tighter mt-4 flex items-end gap-1">
+                {(sysinfo.rx_sec || 0).toFixed(0)}<span className="text-xs text-slate-500 mb-1"> KB/s</span>
+             </div>
+             <div className="text-xs text-slate-400 font-bold tracking-widest uppercase mt-1">Network Inbound</div>
+          </div>
+
+          <div className="glass-panel p-5 relative overflow-hidden border-[#EF4444]/30 bg-[#EF4444]/5">
+             <div className="absolute top-0 left-0 w-full h-1 bg-[#EF4444]"></div>
+             <div className="flex justify-between items-start mb-2">
+               <ShieldAlert className="text-[#EF4444]" size={20} />
+               <span className="text-[10px] font-bold text-[#EF4444] bg-[#EF4444]/20 px-2 py-1 rounded border border-[#EF4444]/30">URGENT</span>
+             </div>
+             <div className="text-3xl font-black text-white uppercase tracking-tighter mt-4 flex items-end gap-1">
+               1<span className="text-xs text-slate-500 mb-1"> UNITS</span>
+             </div>
+             <div className="text-xs text-slate-400 font-bold tracking-widest uppercase mt-1">Critical Alerts</div>
+          </div>
+        </div>
+      )}
+
+      {/* Middle Row Charts */}
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2 glass-panel p-5 h-80 flex flex-col">
+           <h3 className="text-xl font-bold text-white mb-6 uppercase tracking-wider">Login Activity — Last 24 Hours</h3>
+           <div className="flex-1 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trafficData}>
-                <defs>
-                  <linearGradient id="colorInbound" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#06B6D4" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorOutbound" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#A855F7" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#A855F7" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="time" stroke="#475569" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#475569" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip 
+              <BarChart data={loginData} barSize={20}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                <RechartsTooltip 
+                  cursor={{fill: 'rgba(255,255,255,0.05)'}} 
                   contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                  itemStyle={{ color: '#e2e8f0' }}
                 />
-                <Area type="monotone" dataKey="inbound" stroke="#06B6D4" strokeWidth={2} fillOpacity={1} fill="url(#colorInbound)" />
-                <Area type="monotone" dataKey="outbound" stroke="#A855F7" strokeWidth={2} fillOpacity={1} fill="url(#colorOutbound)" />
-              </AreaChart>
+                <Bar dataKey="total" fill="#06B6D4" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="anomaly" fill="#EF4444" radius={[4, 4, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
+           </div>
+           <div className="flex justify-center gap-6 mt-4">
+              <div className="flex items-center gap-2 text-xs text-slate-400 font-semibold"><span className="w-3 h-3 rounded-full bg-[#EF4444]"></span> Anomalies</div>
+              <div className="flex items-center gap-2 text-xs text-slate-400 font-semibold"><span className="w-3 h-3 rounded-full bg-[#06B6D4]"></span> Total Logins</div>
+           </div>
+        </div>
+
+        <div className="col-span-1 glass-panel p-5 flex flex-col h-80">
+          <h3 className="text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <Activity size={20} className="text-[#8B5CF6]" /> Event Distribution
+          </h3>
+          <div className="flex-1 w-full relative -mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={eventData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={90}
+                  paddingAngle={5}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {eventData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <RechartsTooltip contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '8px', color: 'white' }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid grid-cols-2 gap-y-3 gap-x-2 mt-auto">
+             {eventData.map(e => (
+               <div key={e.name} className="flex items-center gap-2 text-[10px] text-slate-300 font-bold tracking-widest uppercase">
+                 <span className="w-2 h-2 rounded-full" style={{backgroundColor: e.color, boxShadow: `0 0 8px ${e.color}`}}></span>
+                 {e.name}
+               </div>
+             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Live Log Stream */}
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2 glass-panel border-[#06B6D4]/30 overflow-hidden flex flex-col h-96 relative">
+          {/* Decorative frame */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#06B6D4] to-transparent opacity-80"></div>
+          
+          <div className="p-5 flex justify-between items-center border-b border-white/5">
+             <h3 className="text-xl font-black text-white italic tracking-tighter flex items-center gap-2">
+               <Activity className="text-[#06B6D4]" /> Live Log Stream
+             </h3>
+             <div className="flex items-center gap-4">
+               <span className="text-xs text-slate-400 font-bold tracking-widest flex items-center gap-2">
+                 <div className="w-2 h-2 rounded-full bg-[#06B6D4] animate-pulse"></div>
+                 {processes.length} EVENTS
+               </span>
+               <Filter size={18} className="text-slate-400 hover:text-white cursor-pointer" />
+             </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
+             <table className="w-full text-left border-collapse text-sm">
+               <thead className="bg-black/40 text-[10px] font-bold text-slate-500 uppercase tracking-widest sticky top-0 z-10">
+                 <tr>
+                   <th className="py-3 px-5 font-medium">Time / PID</th>
+                   <th className="py-3 px-5 font-medium">Process Name</th>
+                   <th className="py-3 px-5 font-medium">User</th>
+                   <th className="py-3 px-5 font-medium">Mem Usage</th>
+                   <th className="py-3 px-5 font-medium text-right">Anomaly</th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y divide-white/5 font-mono text-slate-300">
+                 {processes.slice(0, 15).map((proc, i) => (
+                   <tr key={proc.pid} className="hover:bg-white/5 transition-colors cursor-pointer group">
+                     <td className="py-3 px-5">
+                       <span className="text-xs text-slate-500 mr-2">{timeStr.split(' ')[4]}</span>
+                       <span className="text-[#06B6D4] group-hover:text-white">{proc.pid}</span>
+                     </td>
+                     <td className="py-3 px-5 font-sans font-medium text-slate-200 truncate max-w-[200px]">{proc.name}</td>
+                     <td className="py-3 px-5 text-xs text-slate-400">{proc.user || 'system'}</td>
+                     <td className="py-3 px-5 text-[#10B981]">{(proc.memRss / 1024).toFixed(0)} MB</td>
+                     <td className="py-3 px-5 text-right">
+                       {i === 0 ? (
+                         <span className="inline-block px-2 py-1 rounded border border-[#EF4444]/30 text-[#EF4444] bg-[#EF4444]/10 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 justify-end w-max ml-auto">
+                           <ShieldAlert size={12} /> CRITICAL
+                         </span>
+                       ) : (
+                         <span className="inline-block px-2 py-1 rounded border border-[#10B981]/30 text-[#10B981] bg-[#10B981]/10 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 justify-end w-max ml-auto">
+                           NORMAL
+                         </span>
+                       )}
+                     </td>
+                   </tr>
+                 ))}
+               </tbody>
+             </table>
           </div>
         </div>
 
-        {/* Active Alerts */}
-        <div className="col-span-1 glass-panel p-5 overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="text-[#EF4444]" size={18} />
-              <h3 className="font-semibold text-slate-200 uppercase tracking-wide text-sm">Critical Vectors</h3>
-            </div>
-            <span className="bg-[#EF4444]/20 text-[#EF4444] text-xs font-bold px-2 py-0.5 rounded-full border border-[#EF4444]/30">
-              3 ACTIVE
-            </span>
-          </div>
-          
-          <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar">
-            {[
-              { id: 1, type: 'Lateral Movement', target: 'SRV-092', time: '2m ago', severity: 'critical' },
-              { id: 2, type: 'Ransomware Baseline', target: 'WKST-442', time: '14m ago', severity: 'high' },
-              { id: 3, type: 'Excessive Login Fails', target: 'VPN-GW', time: '1h ago', severity: 'medium' },
-            ].map(alert => (
-              <div key={alert.id} className="p-3 bg-black/40 border border-white/5 rounded-lg hover:bg-white/5 transition-colors cursor-pointer group">
-                <div className="flex justify-between items-start">
-                  <div className="font-medium text-sm text-slate-200 group-hover:text-white">{alert.type}</div>
-                  <div className="text-xs text-slate-500 font-mono">{alert.time}</div>
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="text-xs text-slate-400 font-mono">TGT: {alert.target}</span>
-                  <span className={`w-2 h-2 rounded-full ${alert.severity === 'critical' ? 'bg-[#EF4444] shadow-[0_0_8px_#EF4444]' : alert.severity === 'high' ? 'bg-orange-500' : 'bg-yellow-500'}`}></span>
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Recent Alerts Column */}
+        <div className="col-span-1 flex flex-col gap-4 max-h-96">
+           <div className="flex items-center justify-between">
+             <h3 className="text-lg font-black text-white italic tracking-tighter flex items-center gap-2">
+               <Bell className="text-yellow-500" /> Recent Alerts
+             </h3>
+             <Settings size={18} className="text-slate-400" />
+           </div>
+
+           <div className="flex gap-2 mb-2 bg-black/40 p-1 rounded-lg">
+             <button className="flex-1 py-1.5 px-3 bg-[#EF4444]/20 text-[#EF4444] rounded text-xs font-bold border border-[#EF4444]/30">Critical</button>
+             <button className="flex-1 py-1.5 px-3 text-slate-400 hover:text-white rounded text-xs font-semibold">Resolved</button>
+             <button className="flex-1 py-1.5 px-3 text-slate-400 hover:text-white rounded text-xs font-semibold">Suppressed</button>
+           </div>
+           
+           <div className="overflow-y-auto custom-scrollbar flex-1 space-y-3 pr-2">
+             <div className="glass-panel p-4 border-[#EF4444]/30 bg-black/60 hover:bg-black/40 transition-colors">
+               <div className="flex justify-between items-start mb-2">
+                 <span className="bg-[#EF4444] text-black px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest">Critical</span>
+                 <span className="text-[10px] text-slate-500 font-mono">Just Now</span>
+               </div>
+               <p className="text-sm font-semibold text-slate-200 mt-2 leading-tight">
+                 Behavioral Anomaly: Process <span className="text-[#EF4444] font-mono mx-1">dpkg-query</span> has never been seen during learning phase.
+               </p>
+               <div className="flex items-center gap-2 mt-4">
+                 <button className="text-xs bg-white text-black px-3 py-1.5 rounded font-bold hover:bg-slate-200 flex-1">Acknowledge</button>
+                 <button className="w-8 h-8 rounded bg-white/5 border border-white/10 flex items-center justify-center text-[#06B6D4] hover:bg-[#06B6D4]/20"><Search size={14} /></button>
+               </div>
+             </div>
+           </div>
         </div>
       </div>
     </div>
