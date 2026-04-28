@@ -18,7 +18,7 @@ export function Processes() {
 
   useEffect(() => {
     fetchProcesses();
-    const int2 = setInterval(fetchProcesses, 10000);
+    const int2 = setInterval(fetchProcesses, 2000);
     const timeInt = setInterval(() => {
       const d = new Date();
       setTimeStr(d.toUTCString().replace('GMT', 'UTC'));
@@ -30,7 +30,13 @@ export function Processes() {
     };
   }, []);
 
-  const filtered = processes.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || String(p.pid).includes(search) || (p.path && p.path.toLowerCase().includes(search.toLowerCase())));
+  const filtered = processes
+    .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || String(p.pid).includes(search) || (p.path && p.path.toLowerCase().includes(search.toLowerCase())))
+    .sort((a, b) => {
+      const cpuA = a.cpu === Infinity || isNaN(a.cpu) ? 0 : a.cpu;
+      const cpuB = b.cpu === Infinity || isNaN(b.cpu) ? 0 : b.cpu;
+      return cpuB - cpuA;
+    });
 
   return (
     <div className="flex flex-col h-full bg-[#080b10] text-[#f3f4f6] font-sans">
@@ -99,11 +105,11 @@ export function Processes() {
               </thead>
               <tbody className="divide-y divide-white/5 font-mono text-[#f3f4f6]">
                 {filtered.map((proc, i) => (
-                  <tr key={proc.pid} className="hover:bg-white/5 transition-colors cursor-default">
+                  <tr key={`${proc.pid}-${i}`} className="hover:bg-white/5 transition-colors cursor-default">
                     <td className="py-3 px-6 text-[#9ca3af]">{proc.pid}</td>
                     <td className="py-3 px-6 font-sans font-medium text-white max-w-[200px] truncate">{proc.name}</td>
-                    <td className="py-3 px-6 text-[#7f77dd]">{proc.cpu ? proc.cpu.toFixed(1) : '0.0'}</td>
-                    <td className="py-3 px-6 text-[#00e5c0]">{proc.memRss ? (proc.memRss / 1024).toFixed(0) : '0'} MB</td>
+                    <td className="py-3 px-6 text-[#7f77dd]">{(proc.cpu === Infinity || isNaN(proc.cpu)) ? '0.0' : proc.cpu.toFixed(1)} %</td>
+                    <td className="py-3 px-6 text-[#00e5c0]">{proc.mem ? proc.mem.toFixed(1) : '0.0'} %</td>
                     <td className="py-3 px-6">
                        <span className="inline-block px-2 py-0.5 rounded border border-[#00e5c0]/30 text-[#00e5c0] bg-[#00e5c0]/10 text-[10px] font-bold uppercase tracking-wider">
                          {proc.state || 'RUNNING'}
