@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Activity, ShieldAlert, Cpu, Network, BrainCircuit, RefreshCw, Filter, Settings } from 'lucide-react';
+import { Activity, ShieldAlert, Cpu, Network, BrainCircuit, RefreshCw, Filter, Settings, Bell, Search } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
 export function Dashboard() {
