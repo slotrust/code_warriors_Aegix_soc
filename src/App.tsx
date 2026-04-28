@@ -7,6 +7,7 @@ import { Chatbot } from './components/Chatbot';
 import { Login } from './components/Login';
 import { Processes } from './components/Processes';
 import { Network } from './components/Network';
+import { Logs } from './components/Logs';
 import { useAuth } from './lib/AuthContext';
 import { BrainCircuit, Activity } from 'lucide-react';
 
@@ -29,9 +30,9 @@ export default function App() {
       case 'brain': return <ThreatMemory />;
       case 'processes': return <Processes />;
       case 'network': return <Network />;
+      case 'logs': return <Logs />;
       case 'mitre': 
       case 'alerts':
-      case 'logs':
       case 'forensics':
       case 'ips':
       case 'users':

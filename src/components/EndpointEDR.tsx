@@ -5,6 +5,42 @@ import { useState, useEffect } from 'react';
 export function EndpointEDR() {
   const { user } = useAuth();
   const [timeStr, setTimeStr] = useState('');
+  
+  const [filePath, setFilePath] = useState('');
+  const [fileResult, setFileResult] = useState('');
+  
+  const [nmapTarget, setNmapTarget] = useState('');
+  const [nmapResult, setNmapResult] = useState('');
+
+  const handleScanFile = async () => {
+    setFileResult('Scanning...');
+    try {
+      const res = await fetch('/api/edr/scan-file', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ path: filePath })
+      });
+      const data = await res.json();
+      setFileResult(data.result);
+    } catch(e) {
+      setFileResult('Error connecting to engine.');
+    }
+  };
+
+  const handleRunNmap = async () => {
+    setNmapResult('Running...');
+    try {
+      const res = await fetch('/api/edr/nmap', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ target: nmapTarget })
+      });
+      const data = await res.json();
+      setNmapResult(data.result);
+    } catch(e) {
+      setNmapResult('Error connecting to engine.');
+    }
+  };
 
   useEffect(() => {
     const timeInt = setInterval(() => {
@@ -96,11 +132,12 @@ export function EndpointEDR() {
               <Search size={18} className="text-[#00e5c0]" /> Targeted EDR File Scan
             </h3>
             <div className="flex gap-4">
-              <input type="text" placeholder="Absolute path (e.g. /tmp/payload)" className="flex-1 bg-black/60 border border-white/10 rounded px-4 py-3 text-sm text-white font-mono placeholder-[#9ca3af]/50 focus:outline-none focus:border-[#00e5c0] transition-colors" />
-              <button className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-6 py-3 rounded font-display font-bold whitespace-nowrap transition-colors flex items-center gap-2 tracking-wide">
+              <input type="text" placeholder="Absolute path (e.g. /tmp/payload)" value={filePath} onChange={e => setFilePath(e.target.value)} className="flex-1 bg-black/60 border border-white/10 rounded px-4 py-3 text-sm text-white font-mono placeholder-[#9ca3af]/50 focus:outline-none focus:border-[#00e5c0] transition-colors" />
+              <button onClick={handleScanFile} className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-6 py-3 rounded font-display font-bold whitespace-nowrap transition-colors flex items-center gap-2 tracking-wide">
                 Scan File
               </button>
             </div>
+            {fileResult && <div className="mt-4 bg-black/80 border border-white/5 p-4 rounded text-xs font-mono text-[#00e5c0] whitespace-pre-wrap max-h-40 overflow-y-auto">{fileResult}</div>}
           </div>
 
           <div className="bg-black/40 border border-white/5 rounded-lg p-6 relative overflow-hidden">
@@ -108,11 +145,12 @@ export function EndpointEDR() {
               <Zap size={18} className="text-[#ffb347]" /> Parallel Nmap Scan
             </h3>
             <div className="flex gap-4">
-              <input type="text" placeholder="IP or Hostname (e.g. 192.168.1.1)" className="flex-1 bg-black/60 border border-white/10 rounded px-4 py-3 text-sm text-white font-mono placeholder-[#9ca3af]/50 focus:outline-none focus:border-[#ffb347] transition-colors" />
-              <button className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-6 py-3 rounded font-display font-bold whitespace-nowrap transition-colors flex items-center gap-2 tracking-wide">
+              <input type="text" placeholder="IP or Hostname (e.g. 192.168.1.1)" value={nmapTarget} onChange={e => setNmapTarget(e.target.value)} className="flex-1 bg-black/60 border border-white/10 rounded px-4 py-3 text-sm text-white font-mono placeholder-[#9ca3af]/50 focus:outline-none focus:border-[#ffb347] transition-colors" />
+              <button onClick={handleRunNmap} className="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-6 py-3 rounded font-display font-bold whitespace-nowrap transition-colors flex items-center gap-2 tracking-wide">
                 Run Nmap
               </button>
             </div>
+            {nmapResult && <div className="mt-4 bg-black/80 border border-white/5 p-4 rounded text-xs font-mono text-[#ffb347] whitespace-pre-wrap max-h-40 overflow-y-auto">{nmapResult}</div>}
           </div>
         </div>
 
