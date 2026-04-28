@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
-import { RefreshCw, List, Search, BrainCircuit, X, Activity, ShieldAlert, Cpu, Zap } from 'lucide-react';
+import { RefreshCw, List, Search, BrainCircuit, X, Activity, ShieldAlert, Cpu, Zap, MessageSquare, ShieldOff } from 'lucide-react';
 
 export function Logs() {
   const { user } = useAuth();
@@ -179,9 +179,14 @@ export function Logs() {
               <span className="w-4 h-1.5 bg-[#00e5c0] rounded-full"></span>
               Incident #{Math.floor(Math.random() * 10000)} <span className="text-[#9ca3af] text-sm font-mono font-normal ml-2">{timeStr}</span>
             </h2>
-            <button onClick={() => setSelectedLog(null)} className="text-[#9ca3af] hover:text-white bg-white/5 hover:bg-white/10 p-2 rounded-full transition-colors">
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-4">
+              <button className="flex items-center gap-2 border border-[#00e5c0] text-[#00e5c0] px-3 py-1 rounded text-xs font-bold hover:bg-[#00e5c0]/10 transition-colors">
+                <Search size={14} /> Forensics
+              </button>
+              <button onClick={() => setSelectedLog(null)} className="text-[#9ca3af] hover:text-white bg-white/5 hover:bg-white/10 p-2 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
           </div>
           
           <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
@@ -285,9 +290,15 @@ export function Logs() {
             ) : null}
           </div>
           
-          <div className="p-6 border-t border-white/10 shrink-0 bg-[#080b10]">
-             <button className="w-full bg-[#a855f7] hover:bg-[#a855f7]/90 text-white font-bold py-3 px-4 rounded transition-colors flex items-center justify-center gap-2">
-               Take AI-Suggested Action
+          <div className="p-6 border-t border-white/10 shrink-0 bg-[#080b10] flex gap-4">
+             <button className="flex-1 bg-[#7f77dd] hover:bg-[#7f77dd]/90 text-white font-bold py-3 px-4 rounded transition-colors flex items-center justify-center gap-2">
+               <MessageSquare size={18} /> Ask AI About This
+             </button>
+             <button className="flex-1 border border-white/10 hover:bg-white/5 text-white font-bold py-3 px-4 rounded transition-colors flex items-center justify-center gap-2">
+               <ShieldOff size={18} /> Isolate Endpoint
+             </button>
+             <button onClick={() => setSelectedLog(null)} className="px-6 border border-white/10 hover:bg-white/5 text-white font-bold py-3 rounded transition-colors flex items-center justify-center gap-2">
+               Close
              </button>
           </div>
         </div>
