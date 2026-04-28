@@ -549,16 +549,20 @@ class AegixAgent:
         workflow = StateGraph(AegixState)
         
         workflow.add_node("analyze", self.analyze)
+        workflow.add_node("predict_behavior", self.predict_behavior)
         workflow.add_node("memory_lookup", self.memory_lookup)
         workflow.add_node("decide_action", self.decide_action)
         workflow.add_node("execute", self.execute)
+        workflow.add_node("orchestrate", self.orchestrate)
         workflow.add_node("store_memory", self.store_memory)
         
         workflow.set_entry_point("analyze")
-        workflow.add_edge("analyze", "memory_lookup")
+        workflow.add_edge("analyze", "predict_behavior")
+        workflow.add_edge("predict_behavior", "memory_lookup")
         workflow.add_edge("memory_lookup", "decide_action")
         workflow.add_edge("decide_action", "execute")
-        workflow.add_edge("execute", "store_memory")
+        workflow.add_edge("execute", "orchestrate")
+        workflow.add_edge("orchestrate", "store_memory")
         workflow.add_edge("store_memory", END)
         
         return workflow.compile()
@@ -662,6 +666,65 @@ class AegixAgent:
                 
         return state
 
+    def predict_behavior(self, state: AegixState):
+        if not self.llm:
+            return state
+            
+        system_instruction = """You are a predictive cybersecurity intelligence AI.
+
+Your role is to anticipate attacker behavior and forecast the next stages of an attack based on current activity.
+
+TASK:
+1. Analyze current attack stage (Identify where in the kill chain the attacker is).
+2. Predict next likely actions (Privilege escalation, Lateral movement, Data exfiltration, Persistence).
+3. Assign probability to each prediction (0.0 to 1.0).
+4. Recommend proactive defenses (Actions to prevent next stage).
+5. Highlight high-risk escalation paths.
+
+OUTPUT (STRICT JSON):
+{
+"current_stage": "",
+"predicted_next_steps": [
+{
+"action": "",
+"probability": 0.0
+}
+],
+"highest_risk_path": "",
+"proactive_defense_recommendations": [],
+"confidence": 0.0
+}
+
+RULES:
+* Base predictions on known attack patterns.
+* Do not speculate without evidence.
+* Prioritize realistic attack progression.
+"""
+
+        prompt_input = f"""INPUT:
+* current_attack: {json.dumps(state.get("analysis", ""))}
+* anomaly_data: {json.dumps(state.get("anomaly_result", {}))}
+* system_context: {json.dumps(state.get("event", {}))}
+"""
+        try:
+            if isinstance(self.llm, GeminiLLM):
+                response_text = self.llm.invoke(prompt_input, system_instruction=system_instruction)
+            else:
+                response_text = self.llm.invoke(system_instruction + "\n\n" + prompt_input)
+                
+            response_text = response_text.replace("```json", "").replace("```", "").strip()
+            
+            predictions = json.loads(response_text)
+            state["predictions"] = predictions
+            
+            if predictions.get("highest_risk_path"):
+                state["analysis"] += f" Predicted Next Path: {predictions['highest_risk_path']}."
+                
+        except Exception as e:
+            state["predictive_error"] = str(e)
+            
+        return state
+
     def memory_lookup(self, state: AegixState):
         event = state.get("event", {})
         # Self-hardening: threshold auto-adjusts based on memory size
@@ -699,29 +762,72 @@ class AegixAgent:
             if state.get("action") == "LLM_DECISION" or rl_decision == "LLM_DECISION":
                 if self.llm:
                     try:
-                        system_instruction = "You are Aegix AI Core, an expert cyber security ensemble mechanism utilizing deep neural logic and open-world datasets. You are powered by Qwen 3.6 Plus, Opus 4.6, and GPT 5.4. Your singular goal is strictly to secure the system from being hacked. If the payload indicates advanced persistent threats, simulate a consultation with Qwen 3.6 Plus internally. You act natively on real system events. The available actions you can choose from are ONLY: [IGNORE, BLOCK_IP, ISOLATE_ENDPOINT, DEPLOY_HONEYPOT, DEPLOY_HONEY_CREDENTIALS]. You MUST analyze the payload, threat score, anomaly classification, and attacker profile. If behavior looks like a scanner or lateral movement, prefer a honeypot. If it looks like privilege escalation or credential dumping, prefer honey credentials. Reply with ONLY a valid JSON object containing 'action' and 'reasoning'."
+                        system_instruction = """You are an autonomous cybersecurity decision engine responsible for immediate threat containment.
+
+You must make precise, high-confidence decisions based on analyzed threat intelligence.
+
+AVAILABLE ACTIONS:
+* BLOCK_IP
+* KILL_PROCESS
+* ISOLATE_HOST
+* THROTTLE_NETWORK
+* DEPLOY_HONEYPOT
+* MONITOR
+
+TASK:
+1. Evaluate threat severity (Combine anomaly score + attack classification).
+2. Assess risk (Potential system impact, progression speed).
+3. Choose ONE optimal action (Must prioritize containment).
+4. Justify decision (Reference specific indicators).
+5. Define execution urgency (immediate / high / moderate).
+6. Predict post-action outcome.
+
+OUTPUT (STRICT JSON):
+{
+"decision": "",
+"selected_action": "",
+"urgency": "",
+"confidence": 0.0,
+"reasoning": "",
+"alternative_actions_considered": [],
+"expected_outcome": ""
+}
+
+RULES:
+* Always choose exactly ONE action.
+* Do not default to MONITOR unless confidence is low.
+* Base reasoning on evidence only.
+* Prioritize stopping attack progression over observation.
+"""
                         
-                        prompt = json.dumps({
-                            "event_data": event,
-                            "dl_threat_score": dl_threat_score, 
-                            "malware_analysis": malware_analysis
-                        })
+                        prompt_input = f"""INPUT:
+* anomaly_data: {json.dumps(state.get("anomaly_result", {}))} (DL Score: {dl_threat_score})
+* attack_context: {json.dumps(state.get("analysis", ""))} (Malware: {json.dumps(malware_analysis)})
+* system_state: {json.dumps(event)}
+"""
                         
                         if isinstance(self.llm, GeminiLLM):
-                            response_text = self.llm.invoke(prompt, system_instruction=system_instruction)
+                            response_text = self.llm.invoke(prompt_input, system_instruction=system_instruction)
                         else:
-                            response_text = self.llm.invoke(system_instruction + "\n\nPayload:\n" + prompt)
+                            response_text = self.llm.invoke(system_instruction + "\n\n" + prompt_input)
                         
                         response_text = response_text.replace("```json", "").replace("```", "").strip()
                         
                         try:
                             llm_decision = json.loads(response_text)
-                            state["action"] = llm_decision.get("action", "IGNORE")
+                            raw_action = llm_decision.get("selected_action", "MONITOR")
+                            if raw_action == "MONITOR":
+                                state["action"] = "IGNORE"
+                            elif raw_action == "ISOLATE_HOST":
+                                state["action"] = "ISOLATE_ENDPOINT"
+                            else:
+                                state["action"] = raw_action
                             state["reasoning"] = llm_decision.get("reasoning", "LLM determined this action autonomously.")
+                            state["llm_meta"] = llm_decision
                         except json.JSONDecodeError:
                             if "BLOCK_IP" in response_text: state["action"] = "BLOCK_IP"
-                            elif "ISOLATE_ENDPOINT" in response_text: state["action"] = "ISOLATE_ENDPOINT"
-                            elif "DEPLOY_HONEY_CREDENTIALS" in response_text: state["action"] = "DEPLOY_HONEY_CREDENTIALS"
+                            elif "ISOLATE_HOST" in response_text or "ISOLATE_ENDPOINT" in response_text: state["action"] = "ISOLATE_ENDPOINT"
+                            elif "KILL_PROCESS" in response_text: state["action"] = "KILL_PROCESS"
                             elif "DEPLOY_HONEYPOT" in response_text: state["action"] = "DEPLOY_HONEYPOT"
                             else: state["action"] = "IGNORE"
                             state["reasoning"] = "Extracted action from raw LLM output."
@@ -828,6 +934,64 @@ Reasoning: {state.get('reasoning', state.get('playbook', ''))}
             
         return state
 
+    def orchestrate(self, state: AegixState):
+        if not self.llm:
+            return state
+            
+        system_instruction = """You are the central orchestration AI for an autonomous cyber defense system.
+
+Your role is to ensure a continuous and logical execution pipeline across detection, simulation, response, and explanation.
+
+TASK:
+1. Validate pipeline consistency (Ensure anomaly detection aligns with simulation findings and response decision matches severity).
+2. Detect inconsistencies (Flag contradictions).
+3. Enforce logical flow (detection -> simulation -> response -> explanation).
+4. Optimize response (Adjust or override weak decisions if needed).
+5. Produce unified incident summary (Combine all stages into one coherent narrative).
+
+OUTPUT (STRICT JSON):
+{
+"pipeline_status": "valid | inconsistent",
+"issues_detected": [],
+"final_decision": "",
+"final_action": "",
+"confidence": 0.0,
+"incident_summary": "",
+"recommended_adjustments": []
+}
+
+RULES:
+* Do not allow conflicting outputs.
+* Maintain end-to-end logical consistency.
+* Prioritize system stability and correctness.
+"""
+
+        prompt_input = f"""INPUT:
+* raw_logs: {json.dumps(state.get("event", {}))}
+* anomaly_output: {json.dumps(state.get("anomaly_result", {}))}
+* simulation_output: {json.dumps(state.get("malware_analysis", {}))}
+* response_output: {json.dumps(state.get("execution_details", []))}
+"""
+        try:
+            if isinstance(self.llm, GeminiLLM):
+                response_text = self.llm.invoke(prompt_input, system_instruction=system_instruction)
+            else:
+                response_text = self.llm.invoke(system_instruction + "\n\n" + prompt_input)
+                
+            response_text = response_text.replace("```json", "").replace("```", "").strip()
+            
+            orchestrator_decision = json.loads(response_text)
+            state["orchestrator_decision"] = orchestrator_decision
+            
+            # Append the orchestrator's incident summary to the report
+            if "incident_report" in state and orchestrator_decision.get("incident_summary"):
+                state["incident_report"] += f"\n\n## Orchestrator Summary\n{orchestrator_decision['incident_summary']}\n"
+                
+        except Exception as e:
+            state["orchestrator_error"] = str(e)
+            
+        return state
+
     def store_memory(self, state: AegixState):
         event = state.get("event", {})
         incident_id = self.memory.add_incident(event)
@@ -856,9 +1020,11 @@ Reasoning: {state.get('reasoning', state.get('playbook', ''))}
     def _fallback_process(self, event: Dict[str, Any]):
         state = AegixState({"event": event})
         state = self.analyze(state)
+        state = self.predict_behavior(state)
         state = self.memory_lookup(state)
         state = self.decide_action(state)
         state = self.execute(state)
+        state = self.orchestrate(state)
         state = self.store_memory(state)
         return state
 

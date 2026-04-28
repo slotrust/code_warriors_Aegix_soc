@@ -9,7 +9,10 @@ AegixChain AI is an **Autonomous AI-Powered Security Operations Center (SOC)** e
 - **Layered Self-Hardening**: Implements automatic, evolving defenses by strengthening network configurations and protocols dynamically.
 - **Intrusion Prevention System (IPS)**: Automatic IP blocking and traffic sanitization against active threats.
 - **Unified Security Dashboard**: Real-time monitoring UI delivering instant insights, built with React and Tailwind CSS.
-- **AI Brain Integration (Aegix/Sentinel)**: Context-aware security analysis seamlessly tied into the operational backbone of the system.
+- **AI Brain Integration (Aegix LangGraph Pipeline)**: Context-aware security analysis sequentially orchestrated via neural logic:
+  - **Threat Decision Engine**: High-confidence precision enforcement logic for immediate threat containment.
+  - **Predictive Intelligence AI**: Forecasting models that anticipate attacker kill-chain progression and probabilistically evaluate alternative escalation paths.
+  - **Central Orchestration AI**: Unified validation node that enforces strict logical consistency between detection, simulation, and executed responses.
 - **Real-Time Data Streaming**: Server-Sent Events (SSE) provide live updates for alerts and logs.
 
 ## 🛠️ Technology Stack
