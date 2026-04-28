@@ -1,141 +1,104 @@
-# 🛡️ CyberSOC AI Platform
+# AegixChain AI 🛡️
 
-![CyberSOC Banner](https://img.shields.io/badge/CyberSOC-AI--Powered_Security-0ea5e9?style=for-the-badge)
+AegixChain AI is an **Autonomous AI-Powered Security Operations Center (SOC)** equipped with Episodic Threat Memory and Layered Self-Hardening. Think of it as a living security system that gets smarter every time it's attacked.
 
-CyberSOC is a real-time, AI-driven Security Operations Center (SOC) platform. Built with a modern React frontend and a robust Node.js/Express backend, it monitors system processes, network connections, and authentication logs. It utilizes custom machine learning algorithms to detect anomalies, generate alerts, and features an automated Intrusion Prevention System (IPS) to actively defend against threats.
+## 🌟 Key Features
 
-## ✨ Key Features
+- **Autonomous Threat Detection**: AI-driven analysis to identify and respond to threats in real-time.
+- **Episodic Threat Memory**: The system remembers past incidents and learns from them to prevent similar breaches in the future.
+- **Layered Self-Hardening**: Implements automatic, evolving defenses by strengthening network configurations and protocols dynamically.
+- **Intrusion Prevention System (IPS)**: Automatic IP blocking and traffic sanitization against active threats.
+- **Unified Security Dashboard**: Real-time monitoring UI delivering instant insights, built with React and Tailwind CSS.
+- **AI Brain Integration (Aegix/Sentinel)**: Context-aware security analysis seamlessly tied into the operational backbone of the system.
+- **Real-Time Data Streaming**: Server-Sent Events (SSE) provide live updates for alerts and logs.
 
-- **🤖 AI Anomaly Detection:** Automated threat detection using custom ML feature extraction and prediction.
-- **🛡️ Intrusion Prevention System (IPS):** Automated defense mechanism that blocks malicious IP addresses based on high anomaly scores or brute force attack detection.
-- **🛑 Brute Force Protection:** Built-in rate limiting and automatic IP blocking for repeated failed login attempts.
-- **🖥️ Real-Time System Monitoring:** Live tracking of host system processes (`ps`) and network connections (`ss`) directly from the underlying Linux container.
-- **📊 Interactive Dashboard:** Beautiful, responsive UI with live charts, event distributions, and login activity tracking.
-- **🔍 Advanced Filtering & Sorting:** Filter and sort live logs, active network connections, and running processes directly from the UI for rapid threat analysis.
-- **🚨 Smart Alerts:** Automated alert generation with AI-explained reasons and suggested mitigation steps.
-- **💬 Security Chatbot:** Integrated assistant for security context and queries.
-- **🔒 Secure Authentication & User Management:** Integrated with Firebase Authentication (Google Sign-In) and Firestore for role-based access control (RBAC), complete with robust error boundaries for permission management.
+## 🛠️ Technology Stack
 
-## 🛠️ Tech Stack
+- **Frontend**: React 19, Vite, Tailwind CSS, Recharts, Framer Motion, Lucide React
+- **Backend**: Express (TypeScript/Node.js), Better-SQLite3
+- **AI & Integrations**: Google GenAI
+- **Security & Data Handling**: Express-rate-limit, jsonwebtoken, CORS, bcryptjs
+- **Cloud/Auth**: Firebase (applet config & authentication compatibility built-in)
 
-**Frontend:**
-- React 18
-- Vite
-- Tailwind CSS
-- Recharts (Data Visualization)
-- Lucide React (Icons)
-- Firebase SDK (Auth & Firestore)
+## 📁 Project Structure
 
-**Backend:**
-- Node.js & Express
-- Firebase Admin SDK (Token verification & Firestore access)
-- SQLite (better-sqlite3) for local log storage
-- Custom AI/ML Engine (`feature_extractor`, `anomaly_detector`, `explainer`)
+```text
+├── agent/               # Autonomous AI agent operational code
+├── app/                 # Client UI application endpoints and components
+├── code_warriors_.../   # Internal integrations and logic
+├── sigma_rules/         # Sigma rule mappings for event analytics
+├── src/
+│   ├── ai/              # AI Brain logic and integrations
+│   ├── api/             # Frontend API request abstractions
+│   ├── backend/         # Backend routers, middleware, and controllers
+│   ├── components/      # Reusable React components UI 
+│   ├── hooks/           # Custom React hooks
+│   └── logs/            # Sub-components handling system logs
+├── server.ts            # Entry point for backend Node.js server
+├── vite.config.ts       # Configuration for Vite
+└── package.json         # Project dependencies and script runner commands
+```
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v18 or higher)
-- Linux environment (required for real-time `ps` and `ss` system monitoring commands)
-- Firebase Project (with Authentication and Firestore enabled)
+
+Ensure you have the following installed to run the application:
+- [Node.js](https://nodejs.org/en/) (v18+ recommended)
+- `npm`
 
 ### Installation
 
 1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/cybersoc.git
-   cd cybersoc
-   ```
 
 2. **Install dependencies**
    ```bash
    npm install
    ```
 
-3. **Set up Firebase Configuration**
-   - Create a `firebase-applet-config.json` file in the root directory by copying the example file:
-   ```bash
-   cp firebase-applet-config.example.json firebase-applet-config.json
-   ```
-   - Open `firebase-applet-config.json` and replace the placeholder values with your own Firebase project configuration:
-   ```json
-   {
-     "projectId": "your-project-id",
-     "appId": "your-app-id",
-     "apiKey": "YOUR_FIREBASE_API_KEY",
-     "authDomain": "your-auth-domain",
-     "firestoreDatabaseId": "(default)"
-   }
-   ```
-   - Make sure to set up Firestore Security Rules in your Firebase console using the provided `firestore.rules` file.
-
-4. **Set up environment variables (Gemini API Key)**
-   - Copy the example environment file:
+3. **Environment Setup**
+   Copy the example environment configuration to establish your database and secret keys.
    ```bash
    cp .env.example .env
    ```
-   - Open the `.env` file and add your personal **Gemini API Key** (required for the AI chatbot and anomaly explanations):
-   ```env
-   GEMINI_API_KEY="your_personal_gemini_api_key_here"
-   JWT_SECRET="your_custom_jwt_secret"
-   ```
+   *Make sure you provide the necessary AI service keys and Firebase configuration inside your `.env`.*
 
-5. **Run the development server**
-   ```bash
-   npm run dev
-   ```
-   The application will be available at `http://localhost:3000`.
+### Development
 
-### Production Build
+To start the local development server (spins up both backend server and frontend Vite application proxy):
 
-To build and run the application in a production environment:
+```bash
+npm run dev
+```
+
+The application will be accessible via `http://localhost:3000`.
+
+### Building for Production
+
+Compile the frontend React assets and run the unified built stack:
 
 ```bash
 npm run build
-npm start
+npm run start
 ```
 
-## 📂 Project Structure
+## 🧑‍💻 Commands
 
-```text
-/
-├── server.ts                 # Express backend entry point & global IPS middleware
-├── firebase-applet-config.json # Firebase configuration
-├── firestore.rules           # Firestore security rules
-├── src/
-│   ├── ai/                   # AI/ML logic (Anomaly detection, feature extraction)
-│   ├── api/                  # Frontend API client (Axios)
-│   ├── backend/              # Backend logic
-│   │   ├── routes/           # Express API routes (auth, logs, system, alerts, ips)
-│   │   ├── services/         # Business logic (log processing, system monitoring, IPS)
-│   │   ├── middleware/       # Auth, rate limiting, and IPS blocking middleware
-│   │   ├── firebaseAdmin.ts  # Firebase Admin SDK initialization
-│   │   └── database.ts       # SQLite database initialization (logs, blocked_ips)
-│   ├── components/           # React UI components (Dashboard, IPS Management, ErrorBoundary)
-│   ├── firebase.ts           # Firebase client initialization
-│   └── hooks/                # Custom React hooks (e.g., usePolling)
-├── agent/                    # Python-based external agents (optional)
-└── package.json              # Project dependencies and scripts
-```
+- `npm run dev`: Start the full-stack development server.
+- `npm run build`: Build for production.
+- `npm run clean`: Clean the `dist/` directory.
+- `npm run generator`: Trigger local log generation for testing `src/logs/generator.ts`.
+- `npm run lint`: Check the code for type errors.
 
-## 🧠 How the AI & Defense System Works
+## 🤝 Contribution Guidelines
 
-1. **Feature Extraction:** Incoming logs and system data are parsed to extract key numerical and categorical features (e.g., bytes transferred, time of day, failure rates).
-2. **Anomaly Prediction:** The features are fed into the `anomalyDetector`, which calculates a risk score.
-3. **Automated Defense (IPS):** If a critical anomaly is detected (score > 0.85) or a brute force attack occurs, the Intrusion Prevention System automatically blocks the offending IP address at the middleware level.
-4. **Explanation & Mitigation:** For flagged anomalies, the `explainer` module generates a human-readable reason and suggests immediate mitigation steps.
-5. **Alert Generation:** A critical or medium alert is dispatched to the dashboard for SOC analysts to review, including notifications of automated IPS actions.
+We welcome contributions. Before making large changes, please open an issue to discuss the proposed improvements.
 
-## 🤝 Contributing
+When submitting a Pull Request:
+1. Ensure your code passes all linters (`npm run lint`).
+2. Include explanations for architecture changes.
+3. Keep the code strictly typed with TypeScript.
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/yourusername/cybersoc/issues).
+## 📄 License
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
