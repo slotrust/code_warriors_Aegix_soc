@@ -144,15 +144,15 @@ app.post('/api/logs/analyze', async (req, res) => {
   try {
     const { logRaw, context } = req.body;
     
-    const prompt = \`You are a Senior SOC Analyst. Analyze this system log and its context. Return ONLY a valid JSON object with the following structure, no markdown formatting:
+    const prompt = `You are a Senior SOC Analyst. Analyze this system log and its context. Return ONLY a valid JSON object with the following structure, no markdown formatting:
 {
   "summary": "Plain English explanation",
   "riskLevel": "Low | Medium | High | Critical",
   "rootCause": "Underlying process or trigger",
   "remediation": "Steps to fix or investigate"
 }
-Log: \${logRaw}
-Context: \${context || 'N/A'}\`;
+Log: ${logRaw}
+Context: ${context || 'N/A'}`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-pro',
