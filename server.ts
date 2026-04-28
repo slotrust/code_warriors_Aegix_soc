@@ -13,7 +13,15 @@ import usersRoutes from "./src/backend/routes/users.js";
 import ipsRoutes from "./src/backend/routes/ips.js";
 import phase1Routes from "./src/backend/routes/phase1.js";
 import edrRoutes from "./src/backend/routes/edr.js";
+import aegixRoutes from "./src/backend/routes/aegix.js";
+import behavioralRoutes from "./src/backend/routes/behavioral.js";
+import multiAgentRoutes from "./src/backend/routes/multi_agent.js";
+import memoryRoutes from "./src/backend/routes/memory.js";
+import mitreRoutes from "./src/backend/routes/mitre.js";
+import assistantRoutes from "./src/backend/routes/assistant.js";
+import correlationRoutes from "./src/backend/routes/correlation.js";
 import { apiLimiter } from "./src/backend/middleware/rateLimit.js";
+
 import { ipsMiddleware } from "./src/backend/middleware/ips.js";
 import { ipsService } from "./src/backend/services/ips_service.js";
 import { logService } from "./src/backend/services/log_service.js";
@@ -23,8 +31,7 @@ import { sensorBridge } from "./src/backend/services/sensor_bridge.js";
 import { aegixBridge } from "./src/backend/services/aegix_bridge.js";
 import { sseService } from "./src/backend/services/sse_service.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Directories handled via process.cwd()
 
 async function startServer() {
   const app = express();
@@ -35,6 +42,49 @@ async function startServer() {
 
   app.use(cors());
   app.use(express.json());
+
+  // Log all incoming API requests as real work data
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      const originalSend = res.send;
+      let responseBody: any;
+      res.send = function (content) {
+        responseBody = content;
+        return originalSend.apply(this, arguments as any);
+      };
+
+      res.on('finish', () => {
+        // Avoid recursive logging loops for high-frequency polling endpoints
+        if (req.path === '/api/logs' || req.path === '/api/system/processes' || req.path === '/api/system/network' || req.path === '/api/alerts' || req.path === '/api/health' || req.path === '/api/stream') {
+          return;
+        }
+
+        const username = (req as any).user?.username || 'anonymous';
+        const isSuspicious = req.path.includes('admin') || req.path.includes('delete') || req.path.includes('block') || res.statusCode >= 400;
+
+        let payloadStr = '';
+        try {
+           payloadStr = Object.keys(req.body).length ? req.body : req.query;
+        } catch(e) {}
+
+        logService.processAndSaveLog({
+          timestamp: new Date().toISOString(),
+          source_ip: req.ip || req.socket.remoteAddress || '127.0.0.1',
+          username: username,
+          event_type: 'api_request',
+          status_code: res.statusCode,
+          payload: {
+            method: req.method,
+            path: req.path,
+            body: payloadStr
+          }
+        }).catch(err => {
+          // silent catch to avoid crashing
+        });
+      });
+    }
+    next();
+  });
 
   // Apply IPS Middleware globally BEFORE any other routes
   app.use(ipsMiddleware);
@@ -57,6 +107,13 @@ async function startServer() {
   app.use("/api/ips", ipsRoutes);
   app.use("/api/phase1", phase1Routes);
   app.use("/api/edr", edrRoutes);
+  app.use("/api/aegix", aegixRoutes);
+  app.use("/api/behavioral", behavioralRoutes);
+  app.use("/api/multi-agent", multiAgentRoutes);
+  app.use("/api/memory", memoryRoutes);
+  app.use("/api/mitre", mitreRoutes);
+  app.use("/api/assistant", assistantRoutes);
+  app.use("/api/correlation", correlationRoutes);
 
   app.get("/api/sentinel/history", (req, res) => {
     res.json(aegixBridge.getHistory());
