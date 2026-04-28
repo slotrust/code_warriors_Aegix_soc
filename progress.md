@@ -156,3 +156,38 @@ Healthy system → run attack → anomaly detected → LLM explains → process 
 Vector memory + eBPF + multi-device control
 
  Pitch: *“Not just alerts—NovaShield acts in real time.”*
+ ----------------------------------------------------------------------------------------------
+ # NovaShield AI – Hackathon Progress (All Checkpoints)
+
+---
+## Checkpoint 3 (9:00 PM) – Feature Integration
+
+### Completed
+
+* Integrated **multi-agent pipeline (Collector → Analyst → LLM → Response)**
+* Enabled **real-time alert streaming (Message Bus)**
+* Connected **Gemini AI for forensic analysis**
+* Secured APIs with **auth system**
+
+###  Ongoing
+
+* Fixing **LLM synthesis issues**
+* Reducing **false positives**
+
+---
+
+##  Checkpoint 4 (11:00 PM) – Mid Progress Review
+
+###  Completed
+
+* Working **end-to-end pipeline (Detection → Response)**
+* Implemented **live dashboard feed**
+* Basic **auto-response (process kill simulation)**
+
+### Issues
+
+* LLM failures
+* High alert noise
+
+---
+
