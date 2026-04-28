@@ -13,7 +13,7 @@ export default function App() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center bg-[#0B0D17] text-[#06B6D4]">Loading AegixChain...</div>;
+    return <div className="flex h-screen items-center justify-center bg-[#080b10] text-[#00e5c0]">Loading AegixChain...</div>;
   }
 
   if (!user) {
@@ -38,12 +38,12 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0B0D17] text-slate-300 overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#080b10] text-slate-300 overflow-hidden font-sans">
       <Sidebar currentView={currentView} setView={setCurrentView} />
       <main className="flex-1 relative overflow-y-auto custom-scrollbar">
         {/* Ambient background glow */}
         <div className="fixed top-[-10%] left-1/4 w-[800px] h-[400px] bg-[#A855F7]/10 blur-[120px] rounded-full pointer-events-none"></div>
-        <div className="fixed bottom-[-10%] right-1/4 w-[600px] h-[300px] bg-[#06B6D4]/5 blur-[100px] rounded-full pointer-events-none"></div>
+        <div className="fixed bottom-[-10%] right-1/4 w-[600px] h-[300px] bg-[#00e5c0]/5 blur-[100px] rounded-full pointer-events-none"></div>
         
         <div className="relative z-10 min-h-full">
           {renderContent()}

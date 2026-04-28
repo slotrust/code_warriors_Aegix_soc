@@ -8,13 +8,13 @@ export function ThreatMemory() {
         <p className="text-slate-400 text-sm mt-1">Review AI model verdicts and provide reinforcement training feedback.</p>
       </header>
 
-      <div className="glass-panel p-5">
+      <div className="bg-[#181d28] border border-white/5 rounded-lg p-5">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
-            <BrainCircuit className="text-[#A855F7]" size={20} />
+            <BrainCircuit className="text-[#7f77dd]" size={20} />
             <h3 className="font-semibold text-slate-200 uppercase tracking-wide text-sm">Recent AI Evaluations</h3>
           </div>
-          <div className="text-xs bg-[#A855F7]/10 text-[#A855F7] px-3 py-1 rounded-full border border-[#A855F7]/30">AWAITING FEEDBACK: 2</div>
+          <div className="text-xs bg-[#7f77dd]/10 text-[#7f77dd] px-3 py-1 rounded-full border border-[#7f77dd]/30">AWAITING FEEDBACK: 2</div>
         </div>
 
         <div className="space-y-4">
@@ -44,7 +44,7 @@ export function ThreatMemory() {
               status: 'confirmed'
             }
           ].map((threat) => (
-            <div key={threat.id} className={`p-4 rounded-xl border ${threat.status === 'pending' ? 'bg-black/40 border-[#A855F7]/30' : 'bg-black/20 border-white/5 opacity-70'}`}>
+            <div key={threat.id} className={`p-4 rounded-xl border ${threat.status === 'pending' ? 'bg-black/40 border-[#7f77dd]/30' : 'bg-black/20 border-white/5 opacity-70'}`}>
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <div className="flex items-center gap-2">

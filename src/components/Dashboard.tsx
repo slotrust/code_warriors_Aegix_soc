@@ -44,7 +44,7 @@ export function Dashboard() {
 
   // Event Distribution mock data for Pie chart since we don't have real "login" events in a hackathon demo easily
   const eventData = [
-    { name: 'API REQUEST', value: 400, color: '#06B6D4' },
+    { name: 'API REQUEST', value: 400, color: '#00e5c0' },
     { name: 'FILE CREATE', value: 300, color: '#8B5CF6' },
     { name: 'FILE MODIFY', value: 300, color: '#10B981' },
     { name: 'LOGIN SUCCESS', value: 200, color: '#EF4444' },
@@ -65,11 +65,11 @@ export function Dashboard() {
 
   return (
     <div className="p-8 space-y-6 animate-in fade-in duration-500 max-w-7xl mx-auto text-slate-300">
-      <header className="flex justify-between items-center bg-[#0B0D17] sticky top-0 z-10 py-4 border-b border-white/5">
+      <header className="flex justify-between items-center bg-[#080b10] sticky top-0 z-10 py-4 border-b border-white/5">
         <div className="flex items-center gap-6">
           <h2 className="text-2xl font-bold text-white tracking-wide">Dashboard</h2>
-          <div className="flex items-center gap-2 text-[#06B6D4] text-sm font-mono tracking-wider">
-            <div className="w-2 h-2 rounded-full bg-[#06B6D4] shadow-[0_0_8px_#06B6D4] animate-pulse"></div>
+          <div className="flex items-center gap-2 text-[#00e5c0] text-sm font-mono tracking-wider">
+            <div className="w-2 h-2 rounded-full bg-[#00e5c0] shadow-[0_0_8px_#00e5c0] animate-pulse"></div>
             {timeStr}
           </div>
         </div>
@@ -81,7 +81,7 @@ export function Dashboard() {
                <div className="text-white font-bold text-sm">admin</div>
                <div className="text-slate-500 text-[10px] uppercase tracking-widest font-bold">Role: Admin</div>
              </div>
-             <div className="w-10 h-10 rounded-full border border-[#06B6D4] bg-[#06B6D4]/10 flex items-center justify-center text-[#06B6D4] font-bold shadow-[inset_0_0_10px_rgba(6,182,212,0.2)]">
+             <div className="w-10 h-10 rounded-full border border-[#00e5c0] bg-[#00e5c0]/10 flex items-center justify-center text-[#00e5c0] font-bold shadow-[inset_0_0_10px_rgba(6,182,212,0.2)]">
                AD
              </div>
            </div>
@@ -91,11 +91,11 @@ export function Dashboard() {
       {/* Quick Stats */}
       {sysinfo && (
         <div className="grid grid-cols-4 gap-4">
-          <div className="glass-panel p-5 relative overflow-hidden">
-             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#06B6D4] to-transparent opacity-50"></div>
+          <div className="bg-[#181d28] border border-white/5 rounded-lg p-5 relative overflow-hidden">
+             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#00e5c0] to-transparent opacity-50"></div>
              <div className="flex justify-between items-start mb-2">
-               <Activity className="text-[#06B6D4]" size={20} />
-               <span className="text-[10px] font-bold text-[#06B6D4] bg-[#06B6D4]/10 px-2 py-1 rounded border border-[#06B6D4]/20">+12%</span>
+               <Activity className="text-[#00e5c0]" size={20} />
+               <span className="text-[10px] font-bold text-[#00e5c0] bg-[#00e5c0]/10 px-2 py-1 rounded border border-[#00e5c0]/20">+12%</span>
              </div>
              <div className="text-3xl font-black text-white uppercase tracking-tighter mt-4 flex items-end gap-1">
                {Math.round(sysinfo.cpu || 0)}<span className="text-xs text-slate-500 mb-1"> %</span>
@@ -103,7 +103,7 @@ export function Dashboard() {
              <div className="text-xs text-slate-400 font-bold tracking-widest uppercase mt-1">CPU Load</div>
           </div>
 
-          <div className="glass-panel p-5 relative overflow-hidden">
+          <div className="bg-[#181d28] border border-white/5 rounded-lg p-5 relative overflow-hidden">
              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#8B5CF6] to-transparent opacity-50"></div>
              <div className="flex justify-between items-start mb-2">
                <BrainCircuit className="text-[#8B5CF6]" size={20} />
@@ -115,7 +115,7 @@ export function Dashboard() {
              <div className="text-xs text-slate-400 font-bold tracking-widest uppercase mt-1">Active Processes</div>
           </div>
 
-          <div className="glass-panel p-5 relative overflow-hidden">
+          <div className="bg-[#181d28] border border-white/5 rounded-lg p-5 relative overflow-hidden">
              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#10B981] to-transparent opacity-50"></div>
              <div className="flex justify-between items-start mb-2">
                <Network className="text-[#10B981]" size={20} />
@@ -127,7 +127,7 @@ export function Dashboard() {
              <div className="text-xs text-slate-400 font-bold tracking-widest uppercase mt-1">Network Inbound</div>
           </div>
 
-          <div className="glass-panel p-5 relative overflow-hidden border-[#EF4444]/30 bg-[#EF4444]/5">
+          <div className="bg-[#181d28] border border-white/5 rounded-lg p-5 relative overflow-hidden border-[#EF4444]/30 bg-[#EF4444]/5">
              <div className="absolute top-0 left-0 w-full h-1 bg-[#EF4444]"></div>
              <div className="flex justify-between items-start mb-2">
                <ShieldAlert className="text-[#EF4444]" size={20} />
@@ -143,7 +143,7 @@ export function Dashboard() {
 
       {/* Middle Row Charts */}
       <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 glass-panel p-5 h-80 flex flex-col">
+        <div className="col-span-2 bg-[#181d28] border border-white/5 rounded-lg p-5 h-80 flex flex-col">
            <h3 className="text-xl font-bold text-white mb-6 uppercase tracking-wider">Login Activity — Last 24 Hours</h3>
            <div className="flex-1 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -155,18 +155,18 @@ export function Dashboard() {
                   cursor={{fill: 'rgba(255,255,255,0.05)'}} 
                   contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
                 />
-                <Bar dataKey="total" fill="#06B6D4" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="total" fill="#00e5c0" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="anomaly" fill="#EF4444" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
            </div>
            <div className="flex justify-center gap-6 mt-4">
               <div className="flex items-center gap-2 text-xs text-slate-400 font-semibold"><span className="w-3 h-3 rounded-full bg-[#EF4444]"></span> Anomalies</div>
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-semibold"><span className="w-3 h-3 rounded-full bg-[#06B6D4]"></span> Total Logins</div>
+              <div className="flex items-center gap-2 text-xs text-slate-400 font-semibold"><span className="w-3 h-3 rounded-full bg-[#00e5c0]"></span> Total Logins</div>
            </div>
         </div>
 
-        <div className="col-span-1 glass-panel p-5 flex flex-col h-80">
+        <div className="col-span-1 bg-[#181d28] border border-white/5 rounded-lg p-5 flex flex-col h-80">
           <h3 className="text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
             <Activity size={20} className="text-[#8B5CF6]" /> Event Distribution
           </h3>
@@ -204,17 +204,17 @@ export function Dashboard() {
 
       {/* Bottom Live Log Stream */}
       <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 glass-panel border-[#06B6D4]/30 overflow-hidden flex flex-col h-96 relative">
+        <div className="col-span-2 bg-[#181d28] border border-white/5 rounded-lg border-[#00e5c0]/30 overflow-hidden flex flex-col h-96 relative">
           {/* Decorative frame */}
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#06B6D4] to-transparent opacity-80"></div>
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#00e5c0] to-transparent opacity-80"></div>
           
           <div className="p-5 flex justify-between items-center border-b border-white/5">
              <h3 className="text-xl font-black text-white italic tracking-tighter flex items-center gap-2">
-               <Activity className="text-[#06B6D4]" /> Live Log Stream
+               <Activity className="text-[#00e5c0]" /> Live Log Stream
              </h3>
              <div className="flex items-center gap-4">
                <span className="text-xs text-slate-400 font-bold tracking-widest flex items-center gap-2">
-                 <div className="w-2 h-2 rounded-full bg-[#06B6D4] animate-pulse"></div>
+                 <div className="w-2 h-2 rounded-full bg-[#00e5c0] animate-pulse"></div>
                  {processes.length} EVENTS
                </span>
                <Filter size={18} className="text-slate-400 hover:text-white cursor-pointer" />
@@ -237,7 +237,7 @@ export function Dashboard() {
                    <tr key={proc.pid} className="hover:bg-white/5 transition-colors cursor-pointer group">
                      <td className="py-3 px-5">
                        <span className="text-xs text-slate-500 mr-2">{timeStr.split(' ')[4]}</span>
-                       <span className="text-[#06B6D4] group-hover:text-white">{proc.pid}</span>
+                       <span className="text-[#00e5c0] group-hover:text-white">{proc.pid}</span>
                      </td>
                      <td className="py-3 px-5 font-sans font-medium text-slate-200 truncate max-w-[200px]">{proc.name}</td>
                      <td className="py-3 px-5 text-xs text-slate-400">{proc.user || 'system'}</td>
@@ -276,7 +276,7 @@ export function Dashboard() {
            </div>
            
            <div className="overflow-y-auto custom-scrollbar flex-1 space-y-3 pr-2">
-             <div className="glass-panel p-4 border-[#EF4444]/30 bg-black/60 hover:bg-black/40 transition-colors">
+             <div className="bg-[#181d28] border border-white/5 rounded-lg p-4 border-[#EF4444]/30 bg-black/60 hover:bg-black/40 transition-colors">
                <div className="flex justify-between items-start mb-2">
                  <span className="bg-[#EF4444] text-black px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest">Critical</span>
                  <span className="text-[10px] text-slate-500 font-mono">Just Now</span>
@@ -286,7 +286,7 @@ export function Dashboard() {
                </p>
                <div className="flex items-center gap-2 mt-4">
                  <button className="text-xs bg-white text-black px-3 py-1.5 rounded font-bold hover:bg-slate-200 flex-1">Acknowledge</button>
-                 <button className="w-8 h-8 rounded bg-white/5 border border-white/10 flex items-center justify-center text-[#06B6D4] hover:bg-[#06B6D4]/20"><Search size={14} /></button>
+                 <button className="w-8 h-8 rounded bg-white/5 border border-white/10 flex items-center justify-center text-[#00e5c0] hover:bg-[#00e5c0]/20"><Search size={14} /></button>
                </div>
              </div>
            </div>
