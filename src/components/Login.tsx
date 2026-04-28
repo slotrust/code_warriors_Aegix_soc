@@ -17,7 +17,7 @@ export function Login() {
     setError('');
 
     // Hackathon bypass user request: 'admin' and 'admin123'
-    if ((email === 'admin' || email === 'admoin') && password === 'admin123') {
+    if (email === 'admin' && password === 'admin123') {
       setMockUser({ uid: 'mock-admin-uid', email: 'admin@aegixchain.io', isMock: true });
       return;
     }

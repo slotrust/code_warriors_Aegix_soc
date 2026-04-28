@@ -5,6 +5,8 @@ import { EndpointEDR } from './components/EndpointEDR';
 import { ThreatMemory } from './components/ThreatMemory';
 import { Chatbot } from './components/Chatbot';
 import { Login } from './components/Login';
+import { Processes } from './components/Processes';
+import { Network } from './components/Network';
 import { useAuth } from './lib/AuthContext';
 import { BrainCircuit, Activity } from 'lucide-react';
 
@@ -24,8 +26,15 @@ export default function App() {
     switch (currentView) {
       case 'dashboard': return <Dashboard />;
       case 'edr': return <EndpointEDR />;
-      case 'threat_memory': return <ThreatMemory />;
+      case 'brain': return <ThreatMemory />;
+      case 'processes': return <Processes />;
+      case 'network': return <Network />;
       case 'mitre': 
+      case 'alerts':
+      case 'logs':
+      case 'forensics':
+      case 'ips':
+      case 'users':
       case 'behavioral':
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-4 animate-in fade-in">

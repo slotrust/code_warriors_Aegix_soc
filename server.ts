@@ -63,6 +63,16 @@ app.get('/api/processes', async (req, res) => {
   }
 });
 
+// Real network connections endpoint
+app.get('/api/networkConnections', async (req, res) => {
+  try {
+    const connections = await si.networkConnections();
+    res.json(connections);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed' });
+  }
+});
+
 // Setup Vite for development or serve static files in production
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
