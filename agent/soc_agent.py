@@ -13,23 +13,25 @@ POLL_INTERVAL = 3  # seconds
 
 def get_process_data():
     processes = []
-    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'exe', 'status']):
+    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'exe', 'status', 'cmdline']):
         try:
             pinfo = proc.info
-            # Basic rule-based anomaly detection
-            risk_score = 0
+            cmdline = " ".join(pinfo['cmdline']) if pinfo['cmdline'] else ""
+            
+            # High-priority suspicious keywords for Aegix analysis
+            import re
+            suspicious_pattern = re.compile(r'\b(miner|hack|exploit|malware|keylogger|ncat|reverse_shell|base64|meterpreter|beacon|cobalt)\b', re.IGNORECASE)
+            is_malicious = bool(suspicious_pattern.search(pinfo['name'])) or bool(suspicious_pattern.search(cmdline))
+            
+            risk_score = 0.1
             flagged = False
-            
-            if pinfo['cpu_percent'] > 80:
-                risk_score += 0.5
+            if is_malicious:
+                risk_score = 0.95
+                flagged = True
+            elif pinfo['cpu_percent'] > 80:
+                risk_score = 0.5
                 flagged = True
             
-            # Suspicious names
-            suspicious_names = ['miner', 'hack', 'exploit', 'malware', 'keylogger']
-            if any(name in pinfo['name'].lower() for name in suspicious_names):
-                risk_score += 0.8
-                flagged = True
-
             processes.append({
                 "timestamp": datetime.datetime.now().isoformat(),
                 "type": "process",
@@ -38,10 +40,11 @@ def get_process_data():
                     "name": pinfo['name'],
                     "cpu_percent": pinfo['cpu_percent'],
                     "memory_usage": pinfo['memory_percent'],
-                    "exe_path": pinfo['exe'],
+                    "exe_path": pinfo['exe'] or "Unknown",
+                    "cmdline": cmdline,
                     "status": pinfo['status']
                 },
-                "risk_score": risk_score,
+                "risk_score": min(risk_score, 1.0),
                 "flagged": flagged
             })
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
