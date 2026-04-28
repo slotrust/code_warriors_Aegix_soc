@@ -26,12 +26,18 @@ router.post("/settings", (req, res) => {
 
 router.get("/", (req, res) => {
   try {
-    const severity = req.query.severity as string;
-    const acknowledged = req.query.acknowledged === undefined ? undefined : req.query.acknowledged === 'true';
+    const severity = req.query.severity as string || undefined;
+    const status = req.query.status as string || 'active';
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
     
-    const alerts = alertService.getAlerts(severity, acknowledged, limit, offset);
+    // Auto-migrate old acknowledged parameter if passed by UI
+    let finalStatus = status;
+    if (req.query.acknowledged === 'true') {
+        finalStatus = 'suppressed'; // just map it roughly or ignore
+    }
+
+    const alerts = alertService.getAlerts(severity, finalStatus, limit, offset);
     res.json(alerts);
   } catch (error) {
     console.error("Error in GET /api/alerts:", error);

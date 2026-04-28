@@ -4,6 +4,7 @@ import { ipsService } from "./ips_service.js";
 import { featureExtractor } from "../../ai/feature_extractor.js";
 import { anomalyDetector } from "../../ai/anomaly_detector.js";
 import { explainer } from "../../ai/explainer.js";
+import { processCache, networkCache } from "./real_system_monitor.js";
 import { aegixBridge } from "./aegix_bridge.js";
 
 export const logService = {
@@ -109,12 +110,12 @@ export const logService = {
       const totalLogs = db.prepare("SELECT COUNT(*) as count FROM logs").get() as any;
       const anomaliesToday = db.prepare("SELECT COUNT(*) as count FROM logs WHERE is_anomaly = 1 AND timestamp >= date('now')").get() as any;
       const eventsByType = db.prepare("SELECT event_type, COUNT(*) as count FROM logs GROUP BY event_type").all() as any[];
-      const processCount = db.prepare("SELECT COUNT(DISTINCT pid) as count FROM processes WHERE timestamp > datetime('now', '-15 seconds') AND status = 'Running'").get() as any;
-      const networkCount = db.prepare("SELECT COUNT(DISTINCT local_address || remote_address) as count FROM network_connections WHERE timestamp > datetime('now', '-15 seconds')").get() as any;
+      const processCount = { count: processCache.length };
+      const networkCount = { count: networkCache.length };
       
       // Last 24h timeline
       const timeline = db.prepare(`
-        SELECT strftime('%H', timestamp) as hour, COUNT(*) as count 
+        SELECT strftime('%H', timestamp) as hour, COUNT(*) as count, SUM(CASE WHEN is_anomaly = 1 THEN 1 ELSE 0 END) as anomaly_count 
         FROM logs 
         WHERE timestamp >= datetime('now', '-24 hours')
         GROUP BY hour
@@ -127,7 +128,7 @@ export const logService = {
         process_count: processCount?.count || 0,
         network_count: networkCount?.count || 0,
         events_per_type: eventsByType.reduce((acc, curr) => ({ ...acc, [curr.event_type]: curr.count }), {}),
-        timeline: timeline.map(t => ({ hour: parseInt(t.hour), count: t.count }))
+        timeline: timeline.map(t => ({ hour: parseInt(t.hour), count: t.count, anomaly_count: t.anomaly_count || 0 }))
       };
     } catch (err) {
       console.error("Database error in getStats:", err);

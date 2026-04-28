@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { usePolling } from '../hooks/usePolling';
 import { api } from '../api/client';
-import { Activity, AlertTriangle, Search, ArrowUpDown } from 'lucide-react';
+import { Activity, AlertTriangle, Search, ArrowUpDown, X, ShieldAlert, Cpu } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function ProcessPanel() {
   const { data: processes, loading } = usePolling(() => api.getProcesses(), 3000);
@@ -9,6 +10,10 @@ export default function ProcessPanel() {
   const [sortBy, setSortBy] = useState<string>('cpu_percent');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [expandedPid, setExpandedPid] = useState<number | null>(null);
+  
+  // AI Analysis State
+  const [analyzingPid, setAnalyzingPid] = useState<number | null>(null);
+  const [selectedAnalysis, setSelectedAnalysis] = useState<any | null>(null);
 
   const filteredAndSortedProcesses = useMemo(() => {
     if (!processes || !Array.isArray(processes)) return [];
@@ -48,6 +53,25 @@ export default function ProcessPanel() {
     } else {
       setSortBy(field);
       setSortOrder('desc');
+    }
+  };
+
+  const handleAnalyzeProcess = async (proc: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAnalyzingPid(proc.pid);
+    try {
+      const response = await api.analyzeProcess(proc.pid.toString(), proc.name);
+      setSelectedAnalysis(response.data);
+    } catch (err: any) {
+      console.error("AI Analysis failed:", err);
+      // Simulate error format so modal can show it
+      setSelectedAnalysis({
+        pid: proc.pid,
+        process_name: proc.name,
+        error: err.response?.data?.error || err.message || "Failed to generate AI analysis."
+      });
+    } finally {
+      setAnalyzingPid(null);
     }
   };
 
@@ -107,7 +131,7 @@ export default function ProcessPanel() {
           </thead>
           <tbody className="divide-y divide-soc-border/30">
             {filteredAndSortedProcesses.map((proc: any) => (
-              <React.Fragment key={proc.id}>
+              <React.Fragment key={proc.pid}>
                 <tr
                   onClick={() => setExpandedPid(expandedPid === proc.pid ? null : proc.pid)}
                   className={`transition-all hover:bg-soc-purple/5 group cursor-pointer ${
@@ -117,12 +141,12 @@ export default function ProcessPanel() {
                   <td className="px-6 py-4 font-mono text-soc-cyan">{proc.pid}</td>
                   <td className="px-6 py-4 font-medium flex items-center gap-2">
                     {proc.name}
-                    {proc.status && proc.status !== 'Running' && (
+                    {proc.status && proc.status.toLowerCase() !== 'running' && proc.status.toLowerCase() !== 'sleeping' && (
                       <span className="text-soc-muted text-xs font-normal">({proc.status})</span>
                     )}
-                    {proc.is_suspicious && (
+                    {proc.is_suspicious ? (
                       <AlertTriangle className="w-3 h-3 text-soc-red" />
-                    )}
+                    ) : null}
                   </td>
                   <td className={`px-6 py-4 ${(proc.cpu_percent || 0) > 50 ? 'text-soc-yellow' : 'text-soc-muted'}`}>
                     {(proc.cpu_percent || 0).toFixed(1)}%
@@ -132,9 +156,13 @@ export default function ProcessPanel() {
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-tight ${
-                      proc.status === 'Running' ? 'border-soc-green/30 bg-soc-green/10 text-soc-green' : 'border-soc-muted/30 bg-soc-muted/10 text-soc-muted'
+                      proc.status?.toLowerCase() === 'running' 
+                        ? 'border-soc-green/30 bg-soc-green/10 text-soc-green' 
+                        : proc.status?.toLowerCase() === 'sleeping'
+                        ? 'border-soc-cyan/30 bg-soc-cyan/10 text-soc-cyan'
+                        : 'border-soc-muted/30 bg-soc-muted/10 text-soc-muted'
                     }`}>
-                      {proc.status}
+                      {proc.status?.toLowerCase() === 'sleeping' ? 'IDLE' : proc.status || 'UNKNOWN'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-xs text-soc-muted truncate max-w-[200px]" title={proc.exe_path}>
@@ -157,6 +185,26 @@ export default function ProcessPanel() {
                           <div className="text-soc-muted text-xs uppercase tracking-widest mb-1">Command Line Arguments</div>
                           <div className="font-mono text-soc-text break-all bg-black/30 p-2 rounded border border-soc-border/50 whitespace-pre-wrap">{proc.cmdline || 'N/A'}</div>
                         </div>
+                        
+                        <div className="md:col-span-2 pt-2 border-t border-soc-border/30 mt-2">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-soc-muted text-xs uppercase tracking-widest flex items-center gap-2">
+                              {proc.is_suspicious ? <AlertTriangle className="w-3 h-3 text-soc-red" /> : null}
+                              AI Behavior Analysis
+                            </span>
+                            <button
+                              onClick={(e) => handleAnalyzeProcess(proc, e)}
+                              disabled={analyzingPid === proc.pid}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                analyzingPid === proc.pid 
+                                  ? 'bg-soc-border text-soc-muted' 
+                                  : 'bg-soc-purple/20 border border-soc-purple/30 text-soc-purple hover:bg-soc-purple hover:text-black'
+                              }`}
+                            >
+                              {analyzingPid === proc.pid ? 'Analyzing...' : 'Request AI Assessment'}
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -166,6 +214,108 @@ export default function ProcessPanel() {
           </tbody>
         </table>
       </div>
+
+      {/* AI Process Analysis Modal */}
+      <AnimatePresence>
+        {selectedAnalysis && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setSelectedAnalysis(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-2xl max-h-[85vh] flex flex-col glass-panel rounded-xl border border-soc-purple/30 shadow-[0_0_30px_rgba(139,92,246,0.15)] overflow-hidden"
+            >
+              <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/40">
+                <h3 className="font-syne font-bold text-soc-purple flex items-center gap-2">
+                  <Cpu className="w-5 h-5" />
+                  AI Process Assessment: {selectedAnalysis.process_name || 'Unknown'} (PID: {selectedAnalysis.pid})
+                </h3>
+                <button
+                  onClick={() => setSelectedAnalysis(null)}
+                  className="p-1 hover:bg-white/10 rounded-lg transition-colors text-soc-muted hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto space-y-6">
+                {selectedAnalysis.error ? (
+                  <div className="p-4 rounded-lg bg-soc-red/10 border border-soc-red/30 flex gap-3 text-soc-red">
+                    <AlertTriangle className="w-5 h-5 shrink-0" />
+                    <div>
+                      <div className="font-bold mb-1">Analysis Failed</div>
+                      <div className="text-sm font-mono">{selectedAnalysis.error}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between p-4 bg-black/40 border border-white/5 rounded-lg">
+                      <div>
+                        <div className="text-[10px] text-soc-muted uppercase tracking-widest mb-1">OS Status</div>
+                        <div className={`font-bold font-syne ${selectedAnalysis.os_status === 'Active' ? 'text-soc-red' : 'text-soc-muted'}`}>
+                          {selectedAnalysis.os_status}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-soc-muted uppercase tracking-widest mb-1">Memory Hook Status</div>
+                        <div className="font-bold text-soc-yellow font-mono text-sm">
+                          {selectedAnalysis.memory_read_status}
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedAnalysis.command_line && selectedAnalysis.command_line !== 'Unknown' && (
+                      <div>
+                        <div className="text-[10px] text-soc-cyan uppercase tracking-widest mb-2 flex items-center gap-2">
+                          <Activity className="w-3 h-3" /> Execute Parameters
+                        </div>
+                        <div className="p-3 bg-black/50 border border-soc-cyan/20 rounded-lg font-mono text-xs text-soc-text break-all whitespace-pre-wrap">
+                          {selectedAnalysis.command_line}
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <div className="text-[10px] text-soc-purple uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <ShieldAlert className="w-3 h-3" /> Core Analysis
+                      </div>
+                      <div className="p-4 bg-soc-purple/5 border border-soc-purple/20 rounded-lg text-sm text-soc-text leading-relaxed font-mono whitespace-pre-wrap">
+                        {selectedAnalysis.analysis}
+                      </div>
+                    </div>
+
+                    {selectedAnalysis.live_telemetry && (
+                        <div>
+                          <div className="text-[10px] text-soc-muted uppercase tracking-widest mb-2 flex items-center gap-2">
+                            Extracted Telemetry Slice (OS Limits)
+                          </div>
+                          <div className="p-3 bg-black/50 border border-white/5 rounded-lg font-mono text-[10px] text-soc-muted break-all whitespace-pre-wrap max-h-32 overflow-y-auto">
+                            {selectedAnalysis.live_telemetry}
+                          </div>
+                        </div>
+                    )}
+
+                    <div>
+                      <div className="text-[10px] text-soc-green uppercase tracking-widest mb-2 flex items-center gap-2">
+                        Recommended Mitigation
+                      </div>
+                      <div className="p-4 bg-soc-green/5 border border-soc-green/20 rounded-lg text-sm text-soc-green leading-relaxed font-mono whitespace-pre-wrap">
+                        {selectedAnalysis.mitigation}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

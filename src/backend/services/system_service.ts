@@ -1,11 +1,23 @@
 import { db } from "../database.js";
 import { alertService } from "./alert_service.js";
+import { behavioralAiService } from "./behavioral_ai_service.js";
+import { multiAgentSystem } from "./multi_agent_system.js";
+import { execSync } from "child_process";
+import si from 'systeminformation';
+
+import { processCache, networkCache } from './real_system_monitor.js';
 
 export const systemService = {
   processData: async (data: any) => {
     const { type, details, timestamp, risk_score, flagged } = data;
     
+    // MultiAgent Collector
+    multiAgentSystem.collectorIngest(details, type);
+
     if (type === 'process') {
+      // Pass to Behavioral AI logic
+      await behavioralAiService.analyzeProcess(details);
+
       const stmt = db.prepare(`
         INSERT INTO processes (pid, name, cpu_percent, memory_usage, exe_path, cmdline, user, status, is_suspicious)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -32,6 +44,17 @@ export const systemService = {
         });
       }
     } else if (type === 'network') {
+      const recent = db.prepare(`
+        SELECT 1 FROM network_connections
+        WHERE local_address = ? AND remote_address = ?
+          AND timestamp > datetime('now', '-10 seconds')
+        LIMIT 1
+      `).get(details.local_address, details.remote_address);
+
+      if (recent) {
+        return;
+      }
+
       const stmt = db.prepare(`
         INSERT INTO network_connections (local_address, remote_address, status, pid, is_suspicious)
         VALUES (?, ?, ?, ?, ?)
@@ -56,23 +79,11 @@ export const systemService = {
     }
   },
 
-  getProcesses: (limit = 100) => {
-    return db.prepare(`
-      SELECT * FROM processes 
-      WHERE timestamp > datetime('now', '-15 seconds')
-      GROUP BY pid
-      ORDER BY cpu_percent DESC 
-      LIMIT ?
-    `).all(limit);
+  getProcesses: async (limit = 100) => {
+    return processCache.slice(0, limit);
   },
 
-  getNetworkConnections: (limit = 100) => {
-    return db.prepare(`
-      SELECT * FROM network_connections 
-      WHERE timestamp > datetime('now', '-15 seconds')
-      GROUP BY local_address, remote_address
-      ORDER BY timestamp DESC 
-      LIMIT ?
-    `).all(limit);
+  getNetworkConnections: async (limit = 100) => {
+    return networkCache.slice(0, limit);
   }
 };

@@ -3,8 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { EventEmitter } from 'events';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// handled
 
 class AegixBridge extends EventEmitter {
   private pythonProcess: ChildProcess | null = null;
@@ -12,29 +11,28 @@ class AegixBridge extends EventEmitter {
   private history: any[] = [];
 
   start() {
-    console.log("Initializing AEGIX AI Brain...");
     
-    const scriptPath = path.join(__dirname, '../ai/aegix_brain.py');
+    const scriptPath = path.join(process.cwd(), 'src/backend/ai/aegix_brain.py');
     
     const spawnPython = (command: string) => {
       this.pythonProcess = spawn(command, [scriptPath], {
         env: {
             ...process.env,
-            GEMINI_API_KEY: process.env.GEMINI_API_KEY || ''
+            GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+            OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || ''
         }
       });
 
       this.pythonProcess.on('error', (err: any) => {
-        if (err.code === 'ENOENT') {
-          if (command === 'python3') {
-            console.log("python3 not found, trying python...");
-            spawnPython('python');
-          } else {
-            console.error("Neither python3 nor python found. AEGIX AI Brain will not start.");
-          }
-        } else {
-          console.error(`Failed to start AEGIX AI Brain: ${err.message}`);
+        console.error("aegixBridge Python Error:", err.message);
+        if (err.code === 'ENOENT' && command === 'python3') {
+          spawnPython('python');
         }
+      });
+
+      this.pythonProcess.stdin?.on('error', (err) => {
+        console.error("aegixBridge stdin error:", err);
+        this.isReady = false;
       });
 
       let buffer = '';
@@ -51,8 +49,7 @@ class AegixBridge extends EventEmitter {
             const msg = JSON.parse(line);
             if (msg.status === 'ready') {
               this.isReady = true;
-              console.log(`[AEGIX] ${msg.message}`);
-            } else if (msg.type === 'sentinel_result') {
+            } else if (msg.type === 'sentinel_result' || msg.type === 'aegix_result') {
               this.history.unshift({
                 timestamp: new Date().toISOString(),
                 ...msg.data
@@ -79,13 +76,12 @@ class AegixBridge extends EventEmitter {
                   import('./ips_service.js').then(({ ipsService }) => {
                       const blockReason = `[Auto-TI Block] Flagged as malicious by OSINT feed (${tiResult.source}).`;
                       ipsService.blockIp(sourceIp, blockReason, 24); // Default 24 hour block
-                      console.log(`[THREAT INTEL] Auto-blocked malicious IP: ${sourceIp}`);
                   }).catch(e => console.error("Failed to dynamically import ipsService:", e));
               }
               
-              if (eventSeverity === 'Critical') {
+              if (eventSeverity === 'Critical' && (action === "MANUAL_REVIEW" || action === "LLM_DECISION")) {
                   import('./alert_service.js').then(({ alertService }) => {
-                     // Fire automatic high severity alert since Aegix Python identified it
+                     // Fire automatic high severity alert since Aegix Python identified it and requires manual review
                      let reason = `[Aegix Brain Critical] AI evaluated multi-layered threat path over threshold. ${msg.data.reasoning || ''}`;
                      
                      if (tiResult?.malicious) {
@@ -101,7 +97,7 @@ class AegixBridge extends EventEmitter {
                         severity: "Critical",
                         reason: reason,
                         score: msg.data.dl_threat_score || 0.95,
-                        mitigations: `Action taken by AI: ${action}`
+                        mitigations: `Action needed, status: ${action}`
                      }, true); // skipAegix to prevent infinity loop
                   }).catch(e => console.error("Failed to dynamically import alertService:", e));
               }
@@ -110,68 +106,42 @@ class AegixBridge extends EventEmitter {
                 const sourceIp = msg.data.event?.source_ip;
                 const reasoning = msg.data.reasoning || "Autonomous Aegix RL Response";
                 
-                // Handle Deceptions
-                if (action.includes("HONEYPOT") || action.includes("CREDENTIALS") || action.includes("HONEYPOT_TRIGGER")) {
-                    import('./alert_service.js').then(({ alertService }) => {
-                       alertService.createAlert({
-                          log_id: msg.data.event?.id || Math.floor(Math.random() * 1000000),
-                          severity: "High",
-                          reason: `[Deception Deployed] ${action}. ${msg.data.reasoning}`,
-                          score: 0.95,
-                          mitigations: `Aegix Brain advanced mimicry layer triggered. Fingerprint analysis complete. The system automatically isolated attacker IP and mapped the vector.`
-                       }, true); // skipAegix to prevent infinity loop
-                       console.log(`[AEGIX AUTO-RESPONSE] ${action} detailed response generated.`);
-                    });
-                }
+                // We no longer create alerts for DATA_FORTRESS, HONEYPOT, MULTI_AGENT_SPAWN
+                // because the user requested: "if the AI can resolve the problem, then there is no need for the alert,
+                // just add it to the AI response and memory for reference" - which is already done via this.history.unshift()
                 
                 if (sourceIp) {
                   import('./ips_service.js').then(({ ipsService }) => {
                     if (action === "BLOCK_IP") {
                       ipsService.blockIp(sourceIp, `[RL Brain] ${reasoning}`, 1); // 1 hr block
-                      console.log(`[AEGIX AUTO-RESPONSE] Blocked IP: ${sourceIp}`);
                     } else if (action === "ISOLATE_ENDPOINT") {
                       ipsService.blockIp(sourceIp, `[RL Brain] Endpoint Isolation: ${reasoning}`, 24); // 24 hr block
-                      console.log(`[AEGIX AUTO-RESPONSE] Isolated Endpoint IP: ${sourceIp}`);
                     }
                   }).catch(e => console.error("Failed to dynamically import ipsService:", e));
                 }
               }
               
-              // Handle autonomous Sigma rule generation (Layer Hardening)
+              // We no longer create alerts for autonomous Sigma rule generation (Layer Hardening)
+              // because the action is self-resolved by the AI.
               if (msg.data.hardening_action) {
-                  import('./alert_service.js').then(({ alertService }) => {
-                     alertService.createAlert({
-                        log_id: msg.data.event?.id || Math.floor(Math.random() * 1000000),
-                        severity: "High",
-                        reason: `[Auto-Hardening] System generated autonomous detection rule.`,
-                        score: 0.90,
-                        mitigations: `Aegix detected repeated IPS misses and generated new Sigma Rules. Details: ${msg.data.hardening_action.message}`
-                     }, true);
-                     console.log(`[AEGIX AUTO-HARDENING] Dynamic Sigma rules configured.`);
-                  });
+                  // Hardening action logged to AI memory only
               }
 
               this.emit('result', msg.data);
             } else if (msg.error) {
-              console.error(`[AEGIX ERROR] ${msg.error}`);
             } else if (msg.status === 'warning') {
-              console.warn(`[AEGIX WARNING] ${msg.message}`);
             } else {
-              console.log(`[AEGIX RAW] ${line}`);
             }
           } catch (e) {
-            console.log(`[AEGIX OUTPUT] ${line}`);
           }
         }
       });
 
       this.pythonProcess.stderr?.on('data', (data) => {
-        console.error(`[AEGIX STDERR] ${data.toString()}`);
       });
 
       this.pythonProcess.on('close', (code) => {
         if (code !== null) {
-          console.log(`AEGIX AI Brain exited with code ${code}`);
           this.isReady = false;
           // Restart after 5 seconds
           setTimeout(() => this.start(), 5000);
@@ -180,14 +150,11 @@ class AegixBridge extends EventEmitter {
     };
 
     try {
-      console.log("Checking Aegix Python dependencies...");
       import('child_process').then(({ exec }) => {
-         const installCmd = 'python3 -m pip install --no-cache-dir scikit-learn PyYAML transformers stable-baselines3 gymnasium torch google-genai --extra-index-url https://download.pytorch.org/whl/cpu --break-system-packages || (wget -qO- https://bootstrap.pypa.io/get-pip.py | python3 - --break-system-packages && python3 -m pip install --no-cache-dir scikit-learn PyYAML transformers stable-baselines3 gymnasium torch google-genai --extra-index-url https://download.pytorch.org/whl/cpu --break-system-packages)';
+         const installCmd = 'python3 -m pip install --no-cache-dir PyYAML google-genai requests --break-system-packages || (wget -qO- https://bootstrap.pypa.io/get-pip.py | python3 - --break-system-packages && python3 -m pip install --no-cache-dir PyYAML google-genai requests --break-system-packages)';
          exec(installCmd, (error, stdout, stderr) => {
            if (error) {
-             console.warn(`[AEGIX DEPS] Installation warning: ${error.message}`);
            } else {
-             console.log("Aegix Python dependencies check complete.");
            }
            // Start python process after dependencies are checked/installed
            spawnPython('python3');
@@ -197,17 +164,25 @@ class AegixBridge extends EventEmitter {
         spawnPython('python3');
       });
     } catch (e) {
-      console.log("Failed to initiate Aegix Python dependencies check.");
       spawnPython('python3');
     }
   }
 
   processEvent(event: any) {
-    if (!this.isReady || !this.pythonProcess) {
-      console.warn("AEGIX is not ready to process events.");
+    if (!this.isReady || !this.pythonProcess || !this.pythonProcess.stdin) {
       return;
     }
-    this.pythonProcess.stdin?.write(JSON.stringify(event) + '\n');
+    try {
+      this.pythonProcess.stdin.write(JSON.stringify(event) + '\n', (err) => {
+        if (err) {
+            console.error("Failed to write to python process stdin:", err);
+            this.isReady = false;
+        }
+      });
+    } catch (e) {
+      console.error("Exception writing to python process", e);
+      this.isReady = false;
+    }
   }
 
   getHistory() {

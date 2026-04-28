@@ -83,4 +83,43 @@ router.delete("/unblock/:ip", (req, res) => {
   }
 });
 
+// Get all active firewall rules
+router.get("/firewall-rules", (req, res) => {
+  try {
+    const rules = ipsService.getFirewallRules();
+    res.json(rules);
+  } catch (error) {
+    console.error("Error fetching firewall rules:", error);
+    res.status(500).json({ error: "Failed to fetch firewall rules" });
+  }
+});
+
+// Delete a firewall rule
+router.delete("/firewall-rules/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = (req as any).user;
+    const success = ipsService.deleteFirewallRule(parseInt(id, 10));
+    
+    if (success) {
+      // Log the action
+      logService.processAndSaveLog({
+        timestamp: new Date().toISOString(),
+        source_ip: "127.0.0.1",
+        username: user?.username || "admin",
+        event_type: "firewall_rule_delete",
+        status_code: 200,
+        payload: { action: "delete_rule", rule_id: id }
+      }).catch(console.error);
+
+      res.json({ message: `Firewall rule ${id} successfully deleted` });
+    } else {
+      res.status(500).json({ error: "Failed to delete firewall rule" });
+    }
+  } catch (error) {
+    console.error("Error deleting firewall rule:", error);
+    res.status(500).json({ error: "Failed to delete firewall rule" });
+  }
+});
+
 export default router;

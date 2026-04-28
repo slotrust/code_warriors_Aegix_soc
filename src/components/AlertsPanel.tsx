@@ -11,7 +11,13 @@ interface AlertsPanelProps {
 }
 
 export default function AlertsPanel({ onInvestigate }: AlertsPanelProps) {
-  const { data: alerts, refresh } = usePolling(() => api.getAlerts({ limit: 20, acknowledged: false }), 5000);
+  const [activeTab, setActiveTab] = useState<'critical' | 'resolved' | 'suppressed'>('critical');
+  const { data: alerts, refresh } = usePolling(() => {
+    if (activeTab === 'critical') return api.getAlerts({ limit: 20, status: 'active', severity: 'Critical' });
+    if (activeTab === 'resolved') return api.getAlerts({ limit: 20, status: 'auto_resolved' });
+    if (activeTab === 'suppressed') return api.getAlerts({ limit: 20, status: 'suppressed' });
+    return api.getAlerts({ limit: 20, status: 'active' });
+  }, 5000);
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState({
     auto_ack_enabled: false,
@@ -63,13 +69,33 @@ export default function AlertsPanel({ onInvestigate }: AlertsPanelProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center bg-soc-bg border border-soc-border p-1 rounded-lg">
+        <div className="flex flex-1 gap-1">
+          <button 
+            onClick={() => setActiveTab('critical')}
+            className={`flex-1 py-1 px-3 rounded-md text-xs font-bold transition-colors ${activeTab === 'critical' ? 'bg-soc-red/20 text-soc-red' : 'text-soc-muted hover:text-soc-text'}`}
+          >
+            Critical
+          </button>
+          <button 
+            onClick={() => setActiveTab('resolved')}
+            className={`flex-1 py-1 px-3 rounded-md text-xs font-bold transition-colors ${activeTab === 'resolved' ? 'bg-soc-green/20 text-soc-green' : 'text-soc-muted hover:text-soc-text'}`}
+          >
+            Resolved by AI
+          </button>
+          <button 
+            onClick={() => setActiveTab('suppressed')}
+            className={`flex-1 py-1 px-3 rounded-md text-xs font-bold transition-colors ${activeTab === 'suppressed' ? 'bg-soc-surface text-soc-text shadow-sm' : 'text-soc-muted hover:text-soc-text'}`}
+          >
+            Suppressed
+          </button>
+        </div>
         <button 
           onClick={() => setShowSettings(true)}
-          className="flex items-center gap-2 px-3 py-1.5 bg-soc-surface border border-soc-border rounded-lg text-xs font-bold text-soc-muted hover:text-soc-text hover:bg-soc-border transition-colors"
+          title="Auto-Ack Settings"
+          className="ml-2 flex items-center justify-center p-1.5 text-soc-muted hover:text-soc-cyan transition-colors"
         >
           <Settings className="w-4 h-4" />
-          Auto-Ack Settings
         </button>
       </div>
 
@@ -190,19 +216,27 @@ export default function AlertsPanel({ onInvestigate }: AlertsPanelProps) {
             <div
               key={alert.id}
               className={`glass-panel rounded-xl p-4 transition-all hover:border-soc-cyan/50 border-l-4 ${
-                alert.severity === 'Critical' ? 'border-l-soc-red' : 
+                alert.severity === 'Critical' && activeTab === 'critical' ? 'border-l-soc-red' : 
+                activeTab === 'resolved' ? 'border-l-soc-green' : 
                 alert.severity === 'Medium' ? 'border-l-soc-yellow' : 'border-l-soc-cyan'
               }`}
             >
               <div className="flex justify-between items-start mb-2">
-                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                  alert.severity === 'Critical' ? 'bg-soc-red/10 text-soc-red' : 
-                  alert.severity === 'Medium' ? 'bg-soc-yellow/10 text-soc-yellow' : 'bg-soc-cyan/10 text-soc-cyan'
-                }`}>
-                  {alert.severity}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                    alert.severity === 'Critical' ? 'bg-soc-red/10 text-soc-red' : 
+                    alert.severity === 'Medium' ? 'bg-soc-yellow/10 text-soc-yellow' : 'bg-soc-cyan/10 text-soc-cyan'
+                  }`}>
+                    {alert.severity}
+                  </span>
+                  {alert.occurrences > 1 && (
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-soc-border text-soc-muted">
+                      Repeated {alert.occurrences}x
+                    </span>
+                  )}
+                </div>
                 <span className="text-[10px] text-soc-muted">
-                  {formatDistanceToNow(new Date(alert.created_at))} ago
+                  {new Date(alert.created_at).toLocaleString()}
                 </span>
               </div>
               
@@ -244,12 +278,24 @@ export default function AlertsPanel({ onInvestigate }: AlertsPanelProps) {
               </div>
 
               <div className="flex gap-2">
-                <button
-                  onClick={(e) => handleAcknowledge(e, alert.id)}
-                  className="flex-1 py-1.5 text-xs font-bold bg-soc-bg hover:bg-soc-border text-soc-text rounded-lg transition-colors border border-soc-border"
-                >
-                  Acknowledge
-                </button>
+                {activeTab === 'critical' && (
+                  <button
+                    onClick={(e) => handleAcknowledge(e, alert.id)}
+                    className="flex-1 py-1.5 text-xs font-bold bg-soc-bg hover:bg-soc-border text-soc-text rounded-lg transition-colors border border-soc-border"
+                  >
+                    Acknowledge
+                  </button>
+                )}
+                {activeTab === 'resolved' && alert.resolution_action && (
+                  <div className="flex-1 py-1.5 px-3 text-xs font-bold bg-soc-green/10 text-soc-green rounded-lg border border-soc-green/20 truncate">
+                    {alert.resolution_action}
+                  </div>
+                )}
+                {activeTab === 'suppressed' && alert.resolution_action && (
+                  <div className="flex-1 py-1.5 px-3 text-xs font-bold bg-soc-bg text-soc-muted border border-soc-border rounded-lg truncate">
+                    {alert.resolution_action}
+                  </div>
+                )}
                 <button
                   onClick={() => onInvestigate(alert)}
                   className="px-3 py-1.5 bg-soc-cyan/10 hover:bg-soc-cyan/20 text-soc-cyan rounded-lg transition-colors"

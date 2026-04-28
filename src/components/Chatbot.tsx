@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import AegixLogo from './AegixLogo';
+import toast from 'react-hot-toast';
 
 interface ChatbotProps {
   contextData: any;
@@ -50,7 +51,6 @@ export default function Chatbot({ contextData, onClearContext, autoSend, isFloat
       const res = await api.getChatHistory();
       setChatHistory(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error("Failed to load chat history:", err.response?.status, err.response?.data);
     }
   };
 
@@ -71,7 +71,6 @@ export default function Chatbot({ contextData, onClearContext, autoSend, isFloat
       try {
         await api.saveChatHistory('user', userContent);
       } catch (e) {
-        console.error("Failed to save user message to history:", e);
       }
 
       // 2. Get context if needed
@@ -82,12 +81,13 @@ export default function Chatbot({ contextData, onClearContext, autoSend, isFloat
           const contextRes = await api.getChatContext(contextData.id);
           contextDataToUse = contextRes.data;
         } catch (e) {
-          console.error("Failed to fetch full context", e);
         }
       }
 
       // 3. Call Gemini acting as Orchestrator for the Ensemble
-      const systemPrompt = `You are Aegix AI Core, an expert cyber security ensemble mechanism powered by the combined cognitive architectures of Anthropic Opus 4.6, Qwen 3.6 Plus, and GPT 5.4. Your singular goal is strictly to secure the system from being hacked and prevent data theft. You operate deep neural logic using open-source datasets to run real, uncompromising system defense. Provide profound, highly technical, perfectly accurate security analyses. Ensure no fake or simulated terminology is used; act natively on real system events. You can search historical chat data using the searchChatHistory tool. You can also fetch recent alerts, alert details, system logs, and network connection data using the provided tools. Analyzing network connections is crucial for identifying lateral movement or command-and-control activity.`;
+      const systemPrompt = `You are Aegix AI Core, an expert cyber security ensemble mechanism powered by the combined cognitive architectures of Anthropic Opus 4.6, Qwen 3.6 Plus, and GPT 5.4. Your singular goal is strictly to secure the system from being hacked and prevent data theft. You operate deep neural logic using open-source datasets to run real, uncompromising system defense. Provide profound, highly technical, perfectly accurate security analyses. Ensure no fake or simulated terminology is used; act natively on real system events.
+You must possess advanced reasoning and explicit capabilities to resolve unexpected and critical emergencies, such as zero-day attacks and widespread malware infections, even when no prior instructions are provided and the system is already under attacker control. In such dire scenarios, prioritize the protection and isolation of sensitive data. Do not take or generate any local system logs of your actions to ensure the AI cannot be monitored or manipulated by the attacker.
+You can search historical chat data using the searchChatHistory tool. You can also fetch recent alerts, alert details, system logs, and network connection data using the provided tools. Analyzing network connections is crucial for identifying lateral movement or command-and-control activity.`;
 
       const searchChatHistoryFunctionDeclaration: FunctionDeclaration = {
         name: "searchChatHistory",
@@ -161,9 +161,148 @@ export default function Chatbot({ contextData, onClearContext, autoSend, isFloat
         },
       };
 
+      const blockIpAddressFunctionDeclaration: FunctionDeclaration = {
+        name: "blockIpAddress",
+        description: "Block an IP address in the IPS.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            ip: { type: Type.STRING },
+            reason: { type: Type.STRING },
+            duration: { type: Type.NUMBER, description: "Duration in minutes (optional)" }
+          },
+          required: ["ip", "reason"]
+        }
+      };
+
+      const runEDRScanFunctionDeclaration: FunctionDeclaration = {
+        name: "runEDRScan",
+        description: "Run an EDR vulnerability and filesystem scan.",
+        parameters: {
+           type: Type.OBJECT,
+           properties: {}
+        }
+      };
+
+      const patchCriticalVulnerabilitiesFunctionDeclaration: FunctionDeclaration = {
+        name: "patchCriticalVulnerabilities",
+        description: "Remediate and patch all critical and high severity vulnerabilities through the EDR agent.",
+        parameters: {
+           type: Type.OBJECT,
+           properties: {}
+        }
+      };
+
+      const getPhase1ThreatsFunctionDeclaration: FunctionDeclaration = {
+        name: "getPhase1Threats",
+        description: "Get current phase 1 critical threats and attacker profiles.",
+        parameters: {
+           type: Type.OBJECT,
+           properties: {}
+        }
+      };
+
+      const scanFileIntegrityFunctionDeclaration: FunctionDeclaration = {
+        name: "scanFileIntegrity",
+        description: "Scan a specific file for unauthorized modifications or integrity violations and compare against known baselines.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+             targetPath: { type: Type.STRING, description: "Absolute path to the file (e.g. /etc/passwd)" }
+          },
+          required: ["targetPath"]
+        }
+      };
+
+      const analyzeProcessFunctionDeclaration: FunctionDeclaration = {
+        name: "analyzeProcess",
+        description: "Analyze an active system process by PID for potential threats.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+             pid: { type: Type.STRING, description: "Process ID to analyze" },
+             processName: { type: Type.STRING, description: "Name of the process (optional)" }
+          },
+          required: ["pid"]
+        }
+      };
+
+      const askQwen36PlusFunctionDeclaration: FunctionDeclaration = {
+        name: "askQwen36Plus",
+        description: "Consult the highly-tier Qwen 3.6 Plus model for advices on high severity or difficult cyber security situations.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            prompt: { type: Type.STRING, description: "The difficult situation context or specific question." }
+          },
+          required: ["prompt"]
+        }
+      };
+
+      const queryVulnerabilityDatasetFunctionDeclaration: FunctionDeclaration = {
+        name: "query_vulnerability_dataset",
+        description: "Queries external vulnerability databases (NVD, EPSS) to fetch real-time data, CVSS scores, and known exploit vectors for a specific CVE.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            cve_id: { type: Type.STRING, description: 'The standard identifier, e.g., "CVE-2024-1234"' },
+          },
+          required: ["cve_id"],
+        },
+      };
+
+      const deployTemporaryMitigationFunctionDeclaration: FunctionDeclaration = {
+        name: "deploy_temporary_mitigation",
+        description: "Pushes a temporary security rule or script (like a firewall block or service termination) to the affected asset to prevent exploitation while a permanent patch is developed.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            target_asset: { type: Type.STRING, description: "The IP address or hostname of the vulnerable machine." },
+            mitigation_payload: { type: Type.STRING, description: "The exact Bash command, iptables rule, or WAF configuration to execute." }
+          },
+          required: ["target_asset", "mitigation_payload"],
+        },
+      };
+
+      const createPatchReviewTicketFunctionDeclaration: FunctionDeclaration = {
+        name: "create_patch_review_ticket",
+        description: "Submits a permanent code-level patch or system configuration change to the SOC dashboard for human review and deployment approval.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            cve_id: { type: Type.STRING, description: "The vulnerability being patched." },
+            proposed_fix_code: { type: Type.STRING, description: "The actual code diff, updated dependency manifest, or configuration file." },
+            rollback_plan: { type: Type.STRING, description: "Instructions on how to revert the patch if it breaks the system." },
+          },
+          required: ["cve_id", "proposed_fix_code", "rollback_plan"],
+        },
+      };
+
       let prompt = userContent;
       if (contextDataToUse) {
-        prompt = `ALERT CONTEXT:\n${JSON.stringify(contextDataToUse, null, 2)}\n---\nUSER MESSAGE: ${prompt}`;
+        const severity = contextDataToUse.severity || contextDataToUse.event?.severity || 'Unknown';
+        const eventType = contextDataToUse.event_type || contextDataToUse.event?.event_type || 'Unknown';
+        const mitreTactic = contextDataToUse.mitre_tactic || 'Evaluating...';
+        
+        prompt = `
+CRITICAL INCIDENT CONTEXT DETECTED:
+- Event: ${eventType}
+- Severity: ${severity}
+- Source IP: ${contextDataToUse.source_ip || contextDataToUse.event?.source_ip || 'Internal'}
+- Timestamp: ${contextDataToUse.timestamp || contextDataToUse.event?.timestamp || 'N/A'}
+- MITRE ATT&CK Tactic: ${mitreTactic}
+- Anomaly Score: ${contextDataToUse.score || contextDataToUse.event?.score || '0.00'}
+
+DETAILED RAW DATA:
+${JSON.stringify(contextDataToUse, null, 2)}
+
+INSTRUCTIONS FOR Aegix AI Core:
+1. Perform a deep, comparative analysis of this incident against historical data vectors.
+2. Identify any patterns suggestive of persistent lateral movement or exfiltration.
+3. If severity is Critical, explicitly cross-reference this with similar known campaigns (use searchChatHistory if needed).
+4. Provide immediate remediation strategy for the specific actor identified.
+
+USER MESSAGE: ${prompt}`;
       }
 
       const history = chatHistory.map((msg: any) => ({
@@ -172,7 +311,7 @@ export default function Chatbot({ contextData, onClearContext, autoSend, isFloat
       }));
 
       const chat = ai.chats.create({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-pro-preview",
         history: history,
         config: {
           systemInstruction: systemPrompt,
@@ -181,7 +320,17 @@ export default function Chatbot({ contextData, onClearContext, autoSend, isFloat
             getRecentAlertsFunctionDeclaration, 
             getRecentLogsFunctionDeclaration, 
             getRecentNetworkConnectionsFunctionDeclaration,
-            getAlertDetailsFunctionDeclaration
+            getAlertDetailsFunctionDeclaration,
+            blockIpAddressFunctionDeclaration,
+            runEDRScanFunctionDeclaration,
+            patchCriticalVulnerabilitiesFunctionDeclaration,
+            getPhase1ThreatsFunctionDeclaration,
+            askQwen36PlusFunctionDeclaration,
+            scanFileIntegrityFunctionDeclaration,
+            analyzeProcessFunctionDeclaration,
+            queryVulnerabilityDatasetFunctionDeclaration,
+            deployTemporaryMitigationFunctionDeclaration,
+            createPatchReviewTicketFunctionDeclaration
           ] }],
         }
       });
@@ -216,9 +365,50 @@ export default function Chatbot({ contextData, onClearContext, autoSend, isFloat
               const alertId = call.args.alertId as number;
               const contextRes = await api.getChatContext(alertId);
               functionResponseData = contextRes.data;
+            } else if (call.name === "blockIpAddress") {
+              const res = await api.blockIp(call.args.ip as string, call.args.reason as string || "Blocked by Chatbot", call.args.duration as number || 60);
+              functionResponseData = { status: `IP ${call.args.ip} blocked successfully` };
+              toast.error(`Aegix AI blocked IP: ${call.args.ip}`);
+            } else if (call.name === "runEDRScan") {
+              const res = await api.runEDRScan();
+              functionResponseData = { status: "Scan complete", results: res.data };
+              toast.success("Aegix AI initiated an EDR scan");
+            } else if (call.name === "patchCriticalVulnerabilities") {
+              const res = await api.remediateAllCriticalHigh();
+              functionResponseData = { status: "Vulnerabilities patched successfully", results: res.data };
+              toast.success("Aegix AI patched critical vulnerabilities");
+            } else if (call.name === "getPhase1Threats") {
+              const res = await api.getPhase1Threats();
+              functionResponseData = { threats: res.data };
+            } else if (call.name === "scanFileIntegrity") {
+              const targetPath = call.args.targetPath as string;
+              const res = await api.scanFileIntegrity(targetPath);
+              functionResponseData = res.data;
+              toast.success(`Aegix AI scanned file integrity for ${targetPath}`);
+            } else if (call.name === "analyzeProcess") {
+              const pid = call.args.pid as string;
+              const processName = call.args.processName as string;
+              const res = await api.analyzeProcess(pid, processName);
+              functionResponseData = res.data;
+              toast.success(`Aegix AI analyzing process ${pid}`);
+            } else if (call.name === "askQwen36Plus") {
+              const res = await api.askQwen(call.args.prompt as string);
+              functionResponseData = { qwen_advice: res.data || res };
+              toast.success("Consulted Qwen 3.6 Plus", { style: { background: '#000', color: '#8b5cf6', border: '1px solid #8b5cf6' }});
+            } else if (call.name === "query_vulnerability_dataset") {
+              const res = await api.queryVulnerabilityDataset(call.args.cve_id as string);
+              functionResponseData = res.data;
+              toast.success(`Aegix AI queried dataset for ${call.args.cve_id}`);
+            } else if (call.name === "deploy_temporary_mitigation") {
+              const res = await api.deployTemporaryMitigation(call.args.target_asset as string, call.args.mitigation_payload as string);
+              functionResponseData = res.data;
+              toast.success(`Aegix AI deployed mitigation to ${call.args.target_asset}`);
+            } else if (call.name === "create_patch_review_ticket") {
+              const res = await api.createPatchReviewTicket(call.args.cve_id as string, call.args.proposed_fix_code as string, call.args.rollback_plan as string);
+              functionResponseData = res.data;
+              toast.success(`Aegix AI created ticket for ${call.args.cve_id}`);
             }
           } catch (e: any) {
-            console.error(`Error executing function ${call.name}:`, e);
             functionResponseData = { error: e.message || "Failed to execute function" };
           }
 
@@ -230,23 +420,18 @@ export default function Chatbot({ contextData, onClearContext, autoSend, isFloat
           });
         }
 
-        console.log("Sending function responses:", JSON.stringify(functionResponses).substring(0, 200) + "...");
         response = await chat.sendMessage({ message: functionResponses });
-        console.log("Received response after function call. Text:", response.text, "Function calls:", response.functionCalls?.map(c => c.name));
         
         callCount++;
       }
 
       let aiContent = response.text;
-      console.log("Final aiContent:", aiContent);
       
       if (!aiContent || (response.functionCalls && response.functionCalls.length > 0)) {
-        console.log("Model still wants to call functions or returned no text. Forcing text generation...");
         try {
           response = await chat.sendMessage({ message: "Please provide a comprehensive summary and analysis based on the data you just gathered. Do not call any more functions. Just give me everything you know about the context with precise and accurate answers." });
           aiContent = response.text;
         } catch (e) {
-          console.error("Error forcing text generation:", e);
         }
       }
 
@@ -258,18 +443,30 @@ export default function Chatbot({ contextData, onClearContext, autoSend, isFloat
       try {
         await api.saveChatHistory('assistant', aiContent);
       } catch (e) {
-        console.error("Failed to save AI message to history:", e);
       }
 
       const aiMsg = { role: 'assistant', content: aiContent, created_at: new Date().toISOString() };
       setChatHistory(prev => [...prev, aiMsg]);
       
       if (contextData) onClearContext();
-    } catch (err) {
-      console.error("Chat error:", err);
+    } catch (err: any) {
+      
+      let errorMessage = "An unexpected error occurred while communicating with the AegixChain AI.";
+      
+      const errStr = typeof err === 'object' ? JSON.stringify(err) : String(err);
+      if (err?.message?.includes("API key not valid") || err?.status === 401 || err?.status === 403 || errStr.includes("API key not valid") || errStr.includes("401") || errStr.includes("403")) {
+        errorMessage = "AegixChain AI Error: The API key is invalid or unauthorized. Please verify your Gemini API key in the environmental variables.";
+      } else if (err?.status === 429 || err?.message?.includes("429") || err?.message?.includes("quota") || err?.message?.includes("RESOURCE_EXHAUSTED") || errStr.includes("429") || errStr.includes("quota") || errStr.includes("RESOURCE_EXHAUSTED")) {
+        errorMessage = "AegixChain AI Error: Quota exceeded or rate limit reached. The free tier limits may have been exhausted. Please check your Google AI Studio billing details or wait until your quota resets.";
+      } else if (err?.message?.includes("fetch failed") || err?.name === 'TypeError' || errStr.includes("fetch failed")) {
+        errorMessage = "AegixChain AI Error: Network connection failed. Please check your internet connection or the status of the AI gateway.";
+      } else if (err?.message?.includes("timeout")) {
+        errorMessage = "AegixChain AI Error: The analysis timed out. The request was too complex or the model is under heavy load. Try breaking down your request.";
+      }
+
       setChatHistory(prev => [...prev, { 
         role: 'assistant', 
-        content: "Error: Failed to connect to AegixChain AI. Please ensure your Gemini API key is configured correctly.", 
+        content: `**System Alert:** ${errorMessage}\n\n*Suggested Actions:*\n- Verify API Configuration\n- Ensure network stability\n- Consult local system logs directly if issue persists.`, 
         created_at: new Date().toISOString() 
       }]);
     } finally {
@@ -311,17 +508,16 @@ export default function Chatbot({ contextData, onClearContext, autoSend, isFloat
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-soc-bg/30">
           {chatHistory.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-center p-6">
-              <div className="flex items-center justify-center mb-6 relative">
-                <AegixLogo className="w-48 h-48" hideText={false} />
+            <div className="h-full flex flex-col items-center justify-center text-center p-6 mt-8">
+              <div className="flex flex-col items-center justify-center mb-12 relative">
+                <AegixLogo className="w-24 h-24" hideText={false} />
               </div>
-              <p className="text-soc-muted mb-8 max-w-md mt-16">Initializing Aegix AI Core. Opus 4.6, GPT 5.4, and Qwen 3.6+ ensemble online. Ready to defend system architecture and securely process local vulnerabilities.</p>
-              <div className="grid grid-cols-2 gap-4 w-full max-w-2xl">
+              <div className="grid grid-cols-2 gap-3 w-full max-w-xl">
                 {starterPrompts.map((prompt, i) => (
                   <button
                     key={i}
                     onClick={() => { setMessage(prompt); }}
-                    className="text-left p-4 text-sm bg-soc-surface border border-soc-border rounded-xl hover:border-soc-purple hover:bg-soc-purple/5 transition-all shadow-sm"
+                    className="text-left p-4 text-sm text-soc-text bg-soc-surface border border-soc-border rounded-xl hover:border-soc-purple hover:bg-soc-purple/5 transition-all shadow-sm flex items-center justify-center h-full min-h-[80px]"
                   >
                     {prompt}
                   </button>
@@ -378,26 +574,30 @@ export default function Chatbot({ contextData, onClearContext, autoSend, isFloat
               </button>
             </div>
           )}
-          <div className="relative">
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Ask Aegix AI Core..."
-              className="w-full bg-soc-bg border border-soc-border rounded-xl py-4 pl-5 pr-14 text-sm focus:outline-none focus:border-soc-purple focus:ring-1 focus:ring-soc-purple transition-all resize-none h-14 shadow-inner"
-            />
-            <button
-              type="submit"
-              disabled={!message.trim() || isLoading}
-              className="absolute right-2 top-2 p-2.5 bg-soc-purple text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-all shadow-md hover:shadow-[0_0_15px_rgba(168,85,247,0.4)]"
-            >
-              <Send className="w-5 h-5" />
-            </button>
+          <div className="relative flex items-center gap-2">
+            <div className="relative flex-1 flex">
+              <input
+                type="text"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Send a command or ask Aegix..."
+                className="flex-1 w-full bg-soc-bg border border-soc-border rounded-xl py-3 pl-5 pr-14 text-sm focus:outline-none focus:border-soc-purple focus:ring-1 focus:ring-soc-purple transition-all h-[52px] shadow-inner"
+              />
+              <button
+                type="submit"
+                disabled={!message.trim() || isLoading}
+                className="absolute right-2 top-2 bottom-2 p-2.5 flex items-center justify-center bg-soc-purple text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-all shadow-md hover:shadow-[0_0_15px_rgba(168,85,247,0.4)]"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
+            <div id="voice-agent-container" className="flex items-center justify-center shrink-0 w-14 h-14"></div>
           </div>
         </form>
       </div>

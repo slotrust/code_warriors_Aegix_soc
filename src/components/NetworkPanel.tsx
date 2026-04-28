@@ -102,9 +102,9 @@ export default function NetworkPanel() {
             </tr>
           </thead>
           <tbody className="divide-y divide-soc-border/30">
-            {filteredAndSortedNetwork.map((conn: any) => (
+            {filteredAndSortedNetwork.map((conn: any, index: number) => (
               <tr
-                key={conn.id}
+                key={`${conn.local_address}-${conn.remote_address}-${conn.pid}-${index}`}
                 className={`transition-all hover:bg-soc-cyan/5 group ${
                   conn.is_suspicious ? 'bg-soc-red/5' : ''
                 }`}

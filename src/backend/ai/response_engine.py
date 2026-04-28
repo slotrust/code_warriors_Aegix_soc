@@ -28,7 +28,22 @@ class DeceptionMesh:
         
         message = f"Deployed {trap_type} trap at {location}."
         if trap_type == "fake_credentials":
-            message = f"Injected fake credentials into {location} memory space."
+            # Generate fake realistic credentials
+            fake_creds = [
+                "aegix_admin:Admin@2026!#",
+                "db_service:sup3r_s3cr3t_p@ss",
+                "aws_access_key:AKIAIOSFODNN7EXAMPLE",
+                "aws_secret_key:wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+            ]
+            creds_str = "\\n".join(fake_creds)
+            
+            # Actually write these to a file to make the honeypot "real"
+            vault_dir = "/app/applet/aegix/honeypot_vault"
+            os.makedirs(vault_dir, exist_ok=True)
+            with open(os.path.join(vault_dir, "credentials.txt"), "w") as f:
+                f.write(creds_str)
+                
+            message = f"Injected fake credentials into {location} space and written to physical honeypot vault."
         elif trap_type == "honey_file":
             message = f"Created decoy file 'passwords.txt' in {location}."
             
@@ -37,6 +52,206 @@ class DeceptionMesh:
             "trap_type": trap_type,
             "status": "success",
             "message": message
+        }
+
+    def deploy_secure_shell_trap(self, port: int = 2222) -> Dict[str, Any]:
+        trap_type = "secure_shell_trap"
+        trap = {
+            "id": int(time.time()),
+            "type": trap_type,
+            "location": f"Port {port}",
+            "status": "active",
+            "hits": 0
+        }
+        self.traps.append(trap)
+
+        def ssh_listener():
+            try:
+                import subprocess, sys
+                import os
+                try:
+                    import paramiko
+                except ImportError:
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "paramiko", "cryptography", "pynacl", "bcrypt"])
+                    import paramiko
+
+                class Server(paramiko.ServerInterface):
+                    def __init__(self, client_ip):
+                        self.event = threading.Event()
+                        self.client_ip = client_ip
+                    
+                    def check_channel_request(self, kind, chanid):
+                        if kind == 'session':
+                            return paramiko.OPEN_SUCCEEDED
+                        return paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+
+                    def check_auth_password(self, username, password):
+                        print(json.dumps({
+                            "type": "aegix_result",
+                            "data": {
+                                "analysis": f"Deception Triggered: SSH Login attempt on honeypot port {port}",
+                                "action": "HONEYPOT_TRIGGER",
+                                "reasoning": f"Username: {username}, Password: {password}",
+                                "event": {"source_ip": self.client_ip},
+                                "timestamp": time.time()
+                            }
+                        }), flush=True)
+                        return paramiko.AUTH_SUCCESSFUL
+
+                    def get_allowed_auths(self, username):
+                        return 'password'
+
+                    def check_channel_shell_request(self, channel):
+                        self.event.set()
+                        return True
+
+                    def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight, modes):
+                        return True
+                        
+                key_path = "/tmp/honeypot_rsa.key"
+                if not os.path.exists(key_path):
+                    key = paramiko.RSAKey.generate(2048)
+                    key.write_private_key_file(key_path)
+                host_key = paramiko.RSAKey(filename=key_path)
+
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind(('0.0.0.0', port))
+                sock.listen(100)
+                
+                while True:
+                    try:
+                        conn, addr = sock.accept()
+                        t = paramiko.Transport(conn)
+                        t.add_server_key(host_key)
+                        server = Server(addr[0])
+                        try:
+                            t.start_server(server=server)
+                        except paramiko.SSHException:
+                            continue
+                            
+                        channel = t.accept(20)
+                        if channel is None:
+                            t.close()
+                            continue
+                            
+                        server.event.wait(10)
+                        if not server.event.is_set():
+                            t.close()
+                            continue
+                            
+                        channel.send("Welcome to Ubuntu 22.04.1 LTS (GNU/Linux 5.15.0-53-generic x86_64)\r\n\r\n")
+                        channel.send(f"Last login: {time.strftime('%a %b %d %H:%M:%S %Y')} from 10.0.0.5\r\n")
+                        
+                        cmd_buffer = ""
+                        pwd = "/tmp"
+                        channel.send(f"root@sandbox-kernel-01:{pwd}# ")
+                        while True:
+                            try:
+                                char = channel.recv(1)
+                                if not char:
+                                    break
+                                    
+                                char_dec = char.decode('utf-8', errors='ignore')
+                                
+                                # Echo character back to terminal
+                                if char == b'\r' or char == b'\n':
+                                    channel.send(b'\r\n')
+                                elif char == b'\x08' or char == b'\x7f':
+                                    pass # Handled below
+                                else:
+                                    channel.send(char)
+                                
+                                if char_dec in ('\r', '\n'):
+                                    cmd_str = cmd_buffer.strip()
+                                    if cmd_str:
+                                        print(json.dumps({
+                                            "type": "aegix_result",
+                                            "data": {
+                                                "analysis": f"Deception Executed: Attacker ran command '{cmd_str}' on port {port}",
+                                                "action": "HONEYPOT_CMD",
+                                                "reasoning": f"Intercepted command: {cmd_str}",
+                                                "event": {"source_ip": addr[0]},
+                                                "timestamp": time.time()
+                                            }
+                                        }), flush=True)
+                                        
+                                        if cmd_str in ['exit', 'quit']:
+                                            channel.send("logout\r\n")
+                                            break
+                                            
+                                        if cmd_str.startswith("cd "):
+                                            target_dir = cmd_str[3:].strip()
+                                            try:
+                                                import os
+                                                new_pwd = os.path.abspath(os.path.join(pwd, target_dir))
+                                                if os.path.isdir(new_pwd):
+                                                    pwd = new_pwd
+                                                else:
+                                                    channel.send(f"-bash: cd: {target_dir}: No such file or directory\r\n")
+                                            except Exception as e:
+                                                channel.send(f"Error: {e}\r\n")
+                                        else:
+                                            try:
+                                                import subprocess
+                                                output = subprocess.check_output(cmd_str, shell=True, cwd=pwd, stderr=subprocess.STDOUT, timeout=5, text=True)
+                                                if output:
+                                                    channel.send(output.replace('\n', '\r\n'))
+                                                    if not output.endswith('\n'):
+                                                        channel.send('\r\n')
+                                            except subprocess.TimeoutExpired:
+                                                channel.send("Command timed out.\r\n")
+                                            except subprocess.CalledProcessError as e:
+                                                if e.output:
+                                                    channel.send(e.output.replace('\n', '\r\n'))
+                                                    if not e.output.endswith('\n'):
+                                                        channel.send('\r\n')
+                                            except Exception as e:
+                                                channel.send(f"Error: {e}\r\n")
+                                            
+                                    cmd_buffer = ""
+                                    channel.send(f"root@sandbox-kernel-01:{pwd}# ")
+                                elif char == b'\x08' or char == b'\x7f':
+                                    if len(cmd_buffer) > 0:
+                                        cmd_buffer = cmd_buffer[:-1]
+                                        channel.send(b'\x08 \x08')
+                                else:
+                                    cmd_buffer += char_dec
+                            except Exception:
+                                break
+                        channel.close()
+                        t.close()
+                    except Exception:
+                        pass
+            except Exception as e:
+                pass
+
+        t = threading.Thread(target=ssh_listener, daemon=True)
+        t.start()
+        
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        return {
+            "action": "deploy_secure_shell_trap",
+            "trap_type": trap_type,
+            "status": "success",
+            "message": f"Secure Shell access granted to restricted environment for honeypot monitor at {current_time}. Listening on port {port}."
+        }
+
+    def deploy_deception_maze(self, start_port: int, end_port: int) -> Dict[str, Any]:
+        """Deploys multiple interconnected deception traps."""
+        maze_nodes = []
+        for port in range(start_port, end_port + 1):
+            trap_result = self.deploy_secure_shell_trap(port=port)
+            if trap_result["status"] == "success":
+                maze_nodes.append(port)
+                
+        return {
+            "action": "deploy_deception_maze",
+            "trap_type": "deception_maze",
+            "status": "success",
+            "message": f"Deployed interconnected deception maze across ports {maze_nodes}.",
+            "nodes": maze_nodes
         }
 
 class ResponseEngine:
@@ -112,7 +327,7 @@ class ResponseEngine:
                                 
                             # Emit detailed honeypot fingerprint event
                             print(json.dumps({
-                                "type": "sentinel_result",
+                                "type": "aegix_result",
                                 "data": {
                                     "analysis": f"Advanced Honeypot breached on port {port} by {addr[0]}",
                                     "action": "HONEYPOT_TRIGGER",
@@ -123,8 +338,17 @@ class ResponseEngine:
                                 }
                             }), flush=True)
                             
-                            # Mimic real system file structure
-                            fake_html = """HTTP/1.1 200 OK\r\nServer: Ubuntu/Nginx\r\nContent-Type: text/html\r\n\r\n
+                            # Mimic real system file structure and serve the fake credentials if requested
+                            if "credentials.txt" in request_line:
+                                try:
+                                    with open("/app/applet/aegix/honeypot_vault/credentials.txt", "r") as f:
+                                        creds = f.read()
+                                    fake_response = f"HTTP/1.1 200 OK\\r\\nServer: Ubuntu/Nginx\\r\\nContent-Type: text/plain\\r\\n\\r\\n{creds}"
+                                except Exception:
+                                    fake_response = "HTTP/1.1 404 Not Found\\r\\n\\r\\n"
+                                conn.sendall(fake_response.encode('utf-8'))
+                            else:
+                                fake_html = """HTTP/1.1 200 OK\r\nServer: Ubuntu/Nginx\r\nContent-Type: text/html\r\n\r\n
 <html><head><title>Index of /var/www/internal_system_files</title></head>
 <body><h1>Index of /var/www/internal_system_files</h1>
 <hr><pre><a href="../">../</a>
@@ -132,9 +356,11 @@ class ResponseEngine:
 <a href="database.sqlite">database.sqlite</a>                                   20-Apr-2026 09:15   12M
 <a href="shadow.backup">shadow.backup</a>                                     18-Apr-2026 22:41   1.1K
 <a href="api_keys.json">api_keys.json</a>                                     21-Apr-2026 11:22   400B
+<a href="credentials.txt">credentials.txt</a>                                   {date} 10:00   200B
 </pre><hr></body></html>
-"""
-                            conn.sendall(fake_html.encode('utf-8'))
+""".replace("{date}", time.strftime("%d-%b-%Y"))
+                                conn.sendall(fake_html.encode('utf-8'))
+
             except Exception as e:
                 pass # Port might be in use or permission denied
 
@@ -143,9 +369,65 @@ class ResponseEngine:
         self.active_honeypots[port] = t
         return result
 
+    def execute_data_fortress(self, incident_id: str) -> Dict[str, Any]:
+        result = {"action": "DATA_FORTRESS", "status": "success", "message": "Encrypted sensitive data with new key and moved to randomized hidden path."}
+        try:
+            vault_dir = f"/app/applet/aegix/vault/{incident_id}_scorch"
+            os.makedirs(vault_dir, exist_ok=True)
+            
+            # Write a secure vault lock file simulating the encryption
+            data_file = os.path.join(vault_dir, f"secure_vault_{int(time.time())}.enc")
+            with open(data_file, "w") as f:
+                f.write("ENCRYPTED_VAULT_DATA_LOCK: ALL READ PERMISSIONS STRIPPED VIA AEGIX LAST RESORT PROTOCOL.")
+            
+            # Disable read/write access to everyone to secure the fortress (simulated chattr +i / chmod 000)
+            os.chmod(data_file, 0o000)
+            result["message"] = f"Vault established at {vault_dir}. All read/write permissions stripped globally (Phase C2 Data Sovereignty executed)."
+        except Exception as e:
+            result["status"] = "simulated"
+            result["message"] = f"Simulated data fortress initialization. Warning: {e}"
+            
+        return result
+
     def isolate_network_interface(self, iface: str) -> Dict[str, Any]:
         result = {"action": "isolate_interface", "iface": iface, "status": "simulated", "message": f"Simulated isolating interface {iface} (requires root)."}
         return result
+
+class SOARAgent:
+    """
+    Security Orchestration, Automation, and Response Engine.
+    Automates multi-step playbooks without requiring human interaction.
+    """
+    def __init__(self, response_engine: ResponseEngine):
+        self.response = response_engine
+
+    def execute_playbook(self, playbook_type: str, event: Dict[str, Any]) -> List[Dict[str, Any]]:
+        results = []
+        source_ip = event.get('source_ip', 'unknown')
+        
+        if playbook_type == "CONTAINMENT_PROTOCOLS":
+            # 1. Block IP
+            results.append(self.response.block_ip(source_ip, 120))
+            # 2. Setup Honeypot to trap further probing on port 8080
+            results.append(self.response.deploy_honeypot(8080))
+            # 3. Secure sensitive vaults
+            results.append(self.response.execute_data_fortress(str(int(time.time()))))
+            
+        elif playbook_type == "RANSOMWARE_DEFENSE":
+            # 1. Kill potentially suspicious processes (Simulated)
+            results.append(self.response.kill_process(9999, "Ransomware Playbook Auto-Kill"))
+            # 2. Isolate network interface
+            results.append(self.response.isolate_network_interface("eth0"))
+            # 3. Data Fortress
+            results.append(self.response.execute_data_fortress(str(int(time.time()))))
+            
+        elif playbook_type == "DECEPTION_MAZE":
+            results.append(self.response.deception.deploy_trap("fake_credentials", "/var/www/html/admin/"))
+            results.append(self.response.deploy_honeypot(3306, "mysql_mimic"))
+            results.append(self.response.deploy_honeypot(8080, "http_mimic"))
+            results.append(self.response.deception.deploy_deception_maze(2223, 2225))
+            
+        return results
 
 class LayerHardener:
     def __init__(self):

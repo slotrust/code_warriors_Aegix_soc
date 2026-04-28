@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Bell, List, MessageSquare, ShieldCheck, Globe, Cpu, SearchCode, Users, Brain, ShieldBan } from 'lucide-react';
+import { LayoutDashboard, Bell, List, MessageSquare, ShieldCheck, Globe, Cpu, SearchCode, Users, Brain, ShieldBan, Network } from 'lucide-react';
 import { motion } from 'motion/react';
 import AegixLogo from './AegixLogo';
 

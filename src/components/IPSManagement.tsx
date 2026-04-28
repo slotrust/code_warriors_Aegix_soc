@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, ShieldCheck, Search, AlertTriangle, Plus, X } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Search, AlertTriangle, Plus, X, Server, Trash2 } from 'lucide-react';
 import { api } from '../api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 
 export default function IPSManagement() {
+  const [activeTab, setActiveTab] = useState<'ips' | 'firewall'>('ips');
   const [blockedIps, setBlockedIps] = useState<any[]>([]);
+  const [firewallRules, setFirewallRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -18,17 +20,22 @@ export default function IPSManagement() {
   const [blockDuration, setBlockDuration] = useState<string>('permanent'); // permanent, 1, 24
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Unblock confirmation state
+  // Unblock / Delete rule confirmation state
   const [ipToUnblock, setIpToUnblock] = useState<string | null>(null);
+  const [ruleToDelete, setRuleToDelete] = useState<number | null>(null);
 
-  const fetchBlockedIps = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await api.getBlockedIps();
-      setBlockedIps(res.data);
+      const [ipsRes, fwRes] = await Promise.all([
+        api.getBlockedIps(),
+        api.getFirewallRules()
+      ]);
+      setBlockedIps(ipsRes.data);
+      setFirewallRules(fwRes.data);
       setError(null);
     } catch (err) {
-      console.error("Failed to fetch blocked IPs:", err);
+      console.error("Failed to fetch IPS data:", err);
       setError("Failed to load IPS data. Ensure you have admin privileges.");
     } finally {
       setLoading(false);
@@ -36,9 +43,9 @@ export default function IPSManagement() {
   };
 
   useEffect(() => {
-    fetchBlockedIps();
+    fetchData();
     // Poll every 10 seconds
-    const interval = setInterval(fetchBlockedIps, 10000);
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -57,6 +64,21 @@ export default function IPSManagement() {
     }
   };
 
+  const confirmDeleteRule = async () => {
+    if (!ruleToDelete) return;
+    
+    try {
+      await api.deleteFirewallRule(ruleToDelete);
+      setFirewallRules(firewallRules.filter(r => r.id !== ruleToDelete));
+      toast.success(`Firewall rule deleted successfully`);
+    } catch (err) {
+      console.error("Failed to delete rule:", err);
+      toast.error("Failed to delete rule. Check console for details.");
+    } finally {
+      setRuleToDelete(null);
+    }
+  };
+
   const handleManualBlock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newIp) return;
@@ -69,7 +91,7 @@ export default function IPSManagement() {
       setNewIp('');
       setNewReason('');
       setBlockDuration('permanent');
-      fetchBlockedIps();
+      fetchData();
       toast.success(`IP ${newIp} blocked successfully`);
     } catch (err) {
       console.error("Failed to block IP:", err);
@@ -84,6 +106,12 @@ export default function IPSManagement() {
     (b.reason && b.reason.toLowerCase().includes(searchTerm.toLowerCase()))
   ) : [];
 
+  const filteredRules = Array.isArray(firewallRules) ? firewallRules.filter(r => 
+    (r.rule_name && r.rule_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (r.source_ip && r.source_ip.includes(searchTerm)) ||
+    (r.destination_ip && r.destination_ip.includes(searchTerm))
+  ) : [];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -92,7 +120,7 @@ export default function IPSManagement() {
             <ShieldAlert className="w-6 h-6 text-soc-red" />
             Intrusion Prevention System
           </h2>
-          <p className="text-soc-muted text-sm mt-1">Manage automated and manual IP blocks</p>
+          <p className="text-soc-muted text-sm mt-1">Manage automated and manual blocks, and active firewall rules</p>
         </div>
         
         <button
@@ -101,6 +129,31 @@ export default function IPSManagement() {
         >
           <Plus className="w-4 h-4" />
           Block IP Address
+        </button>
+      </div>
+
+      <div className="flex gap-2 p-1 bg-black/40 rounded-xl w-fit">
+        <button
+          onClick={() => setActiveTab('ips')}
+          className={`flex-1 px-4 py-2 rounded-lg font-syne text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'ips'
+              ? 'bg-soc-surface text-soc-cyan shadow-sm border border-soc-cyan/20'
+              : 'text-soc-muted hover:text-soc-text'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4" />
+          Blocked IPs
+        </button>
+        <button
+          onClick={() => setActiveTab('firewall')}
+          className={`flex-1 px-4 py-2 rounded-lg font-syne text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'firewall'
+              ? 'bg-soc-surface text-soc-cyan shadow-sm border border-soc-cyan/20'
+              : 'text-soc-muted hover:text-soc-text'
+          }`}
+        >
+          <Server className="w-4 h-4" />
+          Firewall Rules
         </button>
       </div>
 
@@ -117,70 +170,140 @@ export default function IPSManagement() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-soc-muted" />
             <input
               type="text"
-              placeholder="Search blocked IPs or reasons..."
+              placeholder={activeTab === 'ips' ? "Search blocked IPs or reasons..." : "Search rule name or IP..."}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-soc-bg border border-soc-border rounded-lg pl-9 pr-4 py-2 text-sm text-soc-text focus:outline-none focus:border-soc-cyan/50"
             />
           </div>
           <div className="text-sm text-soc-muted font-mono">
-            Total Blocked: <span className="text-soc-red font-bold">{blockedIps.length}</span>
+             Total: <span className="text-soc-red font-bold">{activeTab === 'ips' ? blockedIps.length : firewallRules.length}</span>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-soc-bg border-b border-soc-border text-soc-muted">
-              <tr>
-                <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">IP Address</th>
-                <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Reason</th>
-                <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Blocked At</th>
-                <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Expires In</th>
-                <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-soc-border">
-              {loading && blockedIps.length === 0 ? (
+          {activeTab === 'ips' ? (
+            <table className="w-full text-left text-sm">
+              <thead className="bg-soc-bg border-b border-soc-border text-soc-muted">
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-soc-muted">
-                    Loading IPS data...
-                  </td>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">IP Address</th>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Reason</th>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Blocked At</th>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Expires In</th>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs text-right">Actions</th>
                 </tr>
-              ) : filteredIps.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
-                    <ShieldCheck className="w-12 h-12 text-soc-green/50 mx-auto mb-3" />
-                    <p className="text-soc-muted">No blocked IPs found</p>
-                  </td>
-                </tr>
-              ) : (
-                filteredIps.map((block) => (
-                  <tr key={block.ip} className="hover:bg-soc-bg/50 transition-colors group">
-                    <td className="px-6 py-4 font-mono text-soc-red font-bold">
-                      {block.ip}
-                    </td>
-                    <td className="px-6 py-4 text-soc-text max-w-md truncate" title={block.reason}>
-                      {block.reason}
-                    </td>
-                    <td className="px-6 py-4 text-soc-muted whitespace-nowrap">
-                      {formatDistanceToNow(new Date(block.timestamp))} ago
-                    </td>
-                    <td className="px-6 py-4 text-soc-muted whitespace-nowrap">
-                      {block.expires_at ? `${formatDistanceToNow(new Date(block.expires_at))}` : 'Permanent'}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => setIpToUnblock(block.ip)}
-                        className="px-3 py-1.5 text-xs font-bold text-soc-green bg-soc-green/10 hover:bg-soc-green/20 border border-soc-green/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                      >
-                        Unblock
-                      </button>
+              </thead>
+              <tbody className="divide-y divide-soc-border">
+                {loading && blockedIps.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-soc-muted">
+                      Loading IPS data...
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : filteredIps.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center">
+                      <ShieldCheck className="w-12 h-12 text-soc-green/50 mx-auto mb-3" />
+                      <p className="text-soc-muted">No blocked IPs found</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredIps.map((block) => (
+                    <tr key={block.ip} className="hover:bg-soc-bg/50 transition-colors group">
+                      <td className="px-6 py-4 font-mono text-soc-red font-bold">
+                        {block.ip}
+                      </td>
+                      <td className="px-6 py-4 text-soc-text max-w-md truncate" title={block.reason}>
+                        {block.reason}
+                      </td>
+                      <td className="px-6 py-4 text-soc-muted whitespace-nowrap">
+                        {formatDistanceToNow(new Date(block.timestamp))} ago
+                      </td>
+                      <td className="px-6 py-4 text-soc-muted whitespace-nowrap">
+                        {block.expires_at ? `${formatDistanceToNow(new Date(block.expires_at))}` : 'Permanent'}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => setIpToUnblock(block.ip)}
+                          className="px-3 py-1.5 text-xs font-bold text-soc-green bg-soc-green/10 hover:bg-soc-green/20 border border-soc-green/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        >
+                          Unblock
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full text-left text-sm">
+              <thead className="bg-soc-bg border-b border-soc-border text-soc-muted">
+                <tr>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Rule Name</th>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Action</th>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Source IP</th>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Destination</th>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Target Port</th>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Expires In</th>
+                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-soc-border">
+                {loading && firewallRules.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-soc-muted">
+                      Loading Firewall Rules...
+                    </td>
+                  </tr>
+                ) : filteredRules.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center">
+                      <ShieldCheck className="w-12 h-12 text-soc-green/50 mx-auto mb-3" />
+                      <p className="text-soc-muted">No active firewall rules found</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRules.map((rule) => (
+                    <tr key={rule.id} className="hover:bg-soc-bg/50 transition-colors group">
+                      <td className="px-6 py-4 font-mono text-soc-text font-bold">
+                        {rule.rule_name}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded border ${
+                          rule.action === 'DENY' || rule.action === 'DROP' ? 'bg-soc-red/10 border-soc-red/30 text-soc-red' :
+                          rule.action === 'ALLOW' ? 'bg-soc-green/10 border-soc-green/30 text-soc-green' :
+                          'bg-soc-muted/10 border-soc-border text-soc-muted'
+                        }`}>
+                           {rule.action}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-soc-text font-mono">
+                        {rule.source_ip || 'ANY'}
+                      </td>
+                      <td className="px-6 py-4 text-soc-text font-mono">
+                        {rule.destination_ip || 'ANY'}
+                      </td>
+                      <td className="px-6 py-4 text-soc-text font-mono">
+                         {rule.protocol || 'ANY'}:{rule.port || 'ANY'}
+                      </td>
+                      <td className="px-6 py-4 text-soc-muted whitespace-nowrap">
+                        {rule.expires_at ? `${formatDistanceToNow(new Date(rule.expires_at))}` : 'Permanent'}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => setRuleToDelete(rule.id)}
+                          className="px-3 py-1.5 text-xs font-bold text-soc-red bg-soc-red/10 hover:bg-soc-red/20 border border-soc-red/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center gap-1 ml-auto"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                           Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -220,6 +343,47 @@ export default function IPSManagement() {
                     className="px-4 py-2 text-sm font-bold bg-soc-green text-white hover:bg-soc-green/90 rounded-lg transition-colors flex items-center gap-2"
                   >
                     Confirm Unblock
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Rule Confirmation Modal */}
+      <AnimatePresence>
+        {ruleToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-soc-surface border border-soc-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+            >
+              <div className="p-4 border-b border-soc-border flex justify-between items-center bg-soc-bg/50">
+                <h3 className="font-bold flex items-center gap-2 text-soc-text font-syne">
+                  <Trash2 className="w-5 h-5 text-soc-red" />
+                  Confirm Deletion
+                </h3>
+                <button onClick={() => setRuleToDelete(null)} className="p-1 hover:bg-soc-border rounded-md transition-colors text-soc-muted">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-6">
+                <p className="text-soc-text mb-6">Are you sure you want to delete this firewall rule?</p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setRuleToDelete(null)}
+                    className="px-4 py-2 text-sm font-bold text-soc-text hover:bg-soc-border rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeleteRule}
+                    className="px-4 py-2 text-sm font-bold bg-soc-red text-white hover:bg-soc-red/90 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    Delete Rule
                   </button>
                 </div>
               </div>
@@ -309,3 +473,4 @@ export default function IPSManagement() {
     </div>
   );
 }
+

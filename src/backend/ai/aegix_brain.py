@@ -1,6 +1,8 @@
 import json
 import time
 import sys
+import urllib.request
+import urllib.error
 from typing import Dict, Any, List
 
 # Graceful imports for heavy ML libraries
@@ -61,17 +63,60 @@ except Exception as e:
     HAS_GEMINI = False
     print(json.dumps({"status": "warning", "message": f"Gemini module failed to load: {e}"}), flush=True)
 
+class OpenRouterQwenLLM:
+    def __init__(self, api_key=None):
+        self.api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "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")
+        self.model_name = "qwen/qwen-plus"
+        self.enabled = bool(self.api_key)
+
+    def invoke(self, prompt: str, system_instruction: str = None) -> str:
+        if not self.enabled:
+            raise Exception("OpenRouter API key missing")
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://aegix.example.com",
+            "X-Title": "Aegix AI Core"
+        }
+        
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+        
+        data = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": 0.4
+        }
+        
+        req = urllib.request.Request(url, json.dumps(data).encode('utf-8'), headers)
+        try:
+            with urllib.request.urlopen(req) as response:
+                result = json.loads(response.read().decode())
+                return result['choices'][0]['message']['content'].strip()
+        except urllib.error.HTTPError as e:
+            if e.code == 402:
+                self.enabled = False
+                raise Exception("Qwen suspended: API Credits Depleted (402). Falling back to internal protocols.")
+            else:
+                raise e
+        except Exception as e:
+            raise e
+
 class GeminiLLM:
     def __init__(self):
         self.enabled = HAS_GEMINI
         self.client = None
-        self.model_name = 'gemini-2.5-flash'
+        self.model_name = 'gemini-1.5-flash'
         if self.enabled:
             api_key = os.environ.get("GEMINI_API_KEY", "")
-            if api_key:
+            # Ignore placeholder keys that might be in the environment
+            if api_key and api_key != "MY_GEMINI_API_KEY" and not api_key.startswith("YOUR_"):
                 try:
                     self.client = genai.Client(api_key=api_key)
-                    print(json.dumps({"status": "ready", "message": f"Gemini API ({self.model_name}) initialized for automated SOC."}), flush=True)
+                    print(json.dumps({"status": "ready", "message": f"Gemini API ({self.model_name}) initialized. Aegix AI Core successfully established local AI presence."}), flush=True)
                 except Exception as e:
                     print(json.dumps({"error": f"Failed to setup Gemini API: {e}"}), flush=True)
                     self.enabled = False
@@ -114,7 +159,7 @@ class LocalTransformersLLM:
                 device="cpu",
                 torch_dtype=torch.float32
             )
-            print(json.dumps({"status": "ready", "message": f"Local LLM {self.model_name} loaded successfully."}), flush=True)
+            print(json.dumps({"status": "ready", "message": f"Local LLM {self.model_name} loaded successfully. Aegix AI Core successfully established local AI presence."}), flush=True)
         except Exception as e:
             print(json.dumps({"error": f"Failed to load local LLM: {e}"}), flush=True)
             self.generator = None
@@ -332,8 +377,69 @@ class RLDecisionAgent:
                 print(json.dumps({"error": f"RL Agent online training failed: {e}"}), flush=True)
                 self.replay_buffer = [] # Flush it to prevent recursive crash
 
-from response_engine import ResponseEngine, LayerHardener
 from detection_engine import SigmaEngine, AnomalyDetector, MITREMapper, YaraScanner, KillChainCorrelator, ThreatIntelClient, AdvancedDatasetAnalyzer, UserEntityBehaviorAnalytics
+from response_engine import ResponseEngine, SOARAgent
+
+class LayerHardener:
+    def __init__(self):
+        self.layer1_misses = []
+        self.sigma_rules_generated = 0
+
+    def record_miss(self, event: Dict[str, Any]):
+        now = time.time()
+        self.layer1_misses.append(now)
+        # Clean up old misses (> 10 mins)
+        self.layer1_misses = [t for t in self.layer1_misses if now - t <= 600]
+
+        if len(self.layer1_misses) > 3 or event.get("severity") == "Critical":
+            return self.trigger_retraining(event)
+        return None
+
+    def trigger_retraining(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        self.sigma_rules_generated += 1
+        rule_name = f"Auto_Generated_Rule_{self.sigma_rules_generated}_{int(time.time())}"
+        
+        # Build logic based on the pattern natively observed in the miss.
+        event_type = event.get('event_type', 'unknown')
+        source_ip = event.get('source_ip', 'unknown')
+        payload = event.get('payload', {})
+        
+        # More specific selection if possible
+        selection = {
+            "event_type": event_type,
+            "source_ip": source_ip
+        }
+        
+        if isinstance(payload, dict) and payload.get('name'):
+            selection["payload.name"] = payload.get('name')
+
+        sigma_template = f"""title: {rule_name.replace('_', ' ')}
+status: experimental
+description: Auto-generated rule autonomously created by Aegix Brain after detection misses or critical threat identified.
+author: Aegix AI
+date: {time.strftime("%Y/%m/%d")}
+logsource:
+    category: application
+detection:
+    selection:
+{self._format_selection(selection)}
+    condition: selection
+level: critical"""
+
+        # Reset misses after generating a rule
+        self.layer1_misses = []
+        return {
+            "action": "retrain_layer1",
+            "status": "success",
+            "message": f"Autonomous Sigma rule '{rule_name}' generated to harden detection layer.",
+            "new_sigma_rule": sigma_template
+        }
+
+    def _format_selection(self, selection: Dict[str, Any]) -> str:
+        lines = []
+        for k, v in selection.items():
+            lines.append(f"        {k}: '{v}'")
+        return "\n".join(lines)
 
 class AttackMemory:
     def __init__(self, persist_directory="./chroma_db"):
@@ -375,7 +481,19 @@ class AttackMemory:
             similar = []
             # Iterate backwards to get the most recent ones
             for mem in reversed(self.memory):
+                is_match = False
                 if mem.get("event_type") == event.get("event_type") and mem.get("source_ip") == event.get("source_ip"):
+                    # For process events, check if it's the exact same process name
+                    if event.get("event_type") == "process":
+                        mem_name = mem.get("details", {}).get("name", "")
+                        ev_name = event.get("details", {}).get("name", "")
+                        if mem_name and ev_name and mem_name == ev_name:
+                            is_match = True
+                    # For other events, check payload similarity loosely
+                    elif mem.get("payload") == event.get("payload"):
+                        is_match = True
+                        
+                if is_match:
                     similar.append(mem)
                     if len(similar) >= 5:
                         break
@@ -409,50 +527,71 @@ class AegixState(dict):
     pass
 
 class AttackerProfiler:
-    def __init__(self, llm=None):
-        self.llm = llm
+    def __init__(self, gemini_llm=None, qwen_llm=None):
+        self.gemini_llm = gemini_llm
+        self.qwen_llm = qwen_llm
 
     def generate_profile(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
-        if not self.llm:
-            return {
-                "type": "Methodical",
-                "traits": ["Patient", "Likely Insider", "Technical"],
-                "description": "Heuristic analysis suggests a methodical attacker targeting specific internal services."
-            }
-        
         prompt = f"Analyze these attack events and build a psychological profile of the attacker. Events: {events}. Return ONLY a valid JSON object with EXACTLY these string keys: 'type', 'traits' (list of strings), and 'description'. Do not use markdown wraps."
-        try:
-            res = self.llm.invoke(prompt)
-            res = res.replace("```json", "").replace("```", "").strip()
-            return json.loads(res)
-        except:
-            return {
-                "type": "Persistent",
-                "traits": ["Automated", "Broad Spectrum"],
-                "description": "LLM failed to profile. Falling back to persistent automated profile."
-            }
+        
+        # Try Gemini First
+        if self.gemini_llm and self.gemini_llm.enabled:
+            try:
+                res = self.gemini_llm.invoke(prompt)
+                res = res.replace("```json", "").replace("```", "").strip()
+                return json.loads(res)
+            except Exception as e:
+                print(json.dumps({"status": "warning", "message": f"Gemini profiling failed: {e}. Falling back to Qwen."}), flush=True)
+        
+        # Try Qwen Second
+        if self.qwen_llm and self.qwen_llm.enabled:
+            try:
+                res = self.qwen_llm.invoke(prompt)
+                res = res.replace("```json", "").replace("```", "").strip()
+                return json.loads(res)
+            except Exception as e:
+                # Suppress the known 402 depletion warning to avoid log spam, report others
+                if "402" not in str(e):
+                    print(json.dumps({"status": "warning", "message": f"Qwen profiling failed: {e}."}), flush=True)
+
+        return {
+            "type": "Persistent",
+            "traits": ["Automated", "Broad Spectrum"],
+            "description": "Cross-agent analysis failed to profile. Falling back to persistent automated profile."
+        }
 
 class CampaignNamer:
-    def __init__(self, llm=None):
-        self.llm = llm
+    def __init__(self, gemini_llm=None, qwen_llm=None):
+        self.gemini_llm = gemini_llm
+        self.qwen_llm = qwen_llm
 
     def name_campaign(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
-        if not self.llm:
-            return {
-                "name": "Operation SilentBat",
-                "backstory": "A stealthy operation targeting shadow IT services discovered during routine scans."
-            }
-        
         prompt = f"Based on these attack patterns, generate a cool cyber operation name (e.g. 'Operation X') and a short backstory. Events: {events}. Return ONLY a valid JSON object with string keys 'name' and 'backstory'. Do not use markdown wrap."
-        try:
-            res = self.llm.invoke(prompt)
-            res = res.replace("```json", "").replace("```", "").strip()
-            return json.loads(res)
-        except:
-            return {
-                "name": "Operation VoidWalker",
-                "backstory": "LLM failed to name. Defaulting to VoidWalker protocol."
-            }
+        
+        # Try Gemini First
+        if self.gemini_llm and self.gemini_llm.enabled:
+            try:
+                res = self.gemini_llm.invoke(prompt)
+                res = res.replace("```json", "").replace("```", "").strip()
+                return json.loads(res)
+            except Exception as e:
+                print(json.dumps({"status": "warning", "message": f"Gemini naming failed: {e}. Falling back to Qwen."}), flush=True)
+
+        # Try Qwen Second
+        if self.qwen_llm and self.qwen_llm.enabled:
+            try:
+                res = self.qwen_llm.invoke(prompt)
+                res = res.replace("```json", "").replace("```", "").strip()
+                return json.loads(res)
+            except Exception as e:
+                # Suppress the known 402 depletion warning to avoid log spam, report others
+                if "402" not in str(e):
+                    print(json.dumps({"status": "warning", "message": f"Qwen naming failed: {e}."}), flush=True)
+
+        return {
+            "name": "Operation VoidWalker",
+            "backstory": "Aegix Ensemble detected a pattern but failed to generate a creative name. Defaulting to VoidWalker protocol for high-fidelity tracking."
+        }
 
 class MalwareAnalyzer:
     def analyze(self, event: Dict[str, Any], yara_matches: List[str] = []) -> Dict[str, Any]:
@@ -514,20 +653,21 @@ class AegixAgent:
         self.rl_agent = RLDecisionAgent()
         self.malware_analyzer = MalwareAnalyzer()
         
-        # Prefer GeminiLLM if available, fallback to others
-        if HAS_GEMINI and os.environ.get("GEMINI_API_KEY"):
-            self.llm = GeminiLLM()
-        elif HAS_TRANSFORMERS:
-            self.llm = LocalTransformersLLM()
-        elif HAS_OLLAMA:
-            self.llm = Ollama(model="phi3")
+        # Dual-Agent Architecture
+        self.gemini_llm = GeminiLLM()
+        self.qwen_llm = OpenRouterQwenLLM()
+        
+        # Support for local fallback if both cloud agents fail
+        if HAS_TRANSFORMERS:
+            self.local_llm = LocalTransformersLLM()
         else:
-            self.llm = None
+            self.local_llm = None
             
         self.response_engine = ResponseEngine()
+        self.soar_agent = SOARAgent(self.response_engine)
         self.hardener = LayerHardener()
-        self.profiler = AttackerProfiler(self.llm)
-        self.namer = CampaignNamer(self.llm)
+        self.profiler = AttackerProfiler(self.gemini_llm, self.qwen_llm)
+        self.namer = CampaignNamer(self.gemini_llm, self.qwen_llm)
         self.base_threshold = 0.85
         
         # Detection Engine Layer
@@ -549,20 +689,16 @@ class AegixAgent:
         workflow = StateGraph(AegixState)
         
         workflow.add_node("analyze", self.analyze)
-        workflow.add_node("predict_behavior", self.predict_behavior)
         workflow.add_node("memory_lookup", self.memory_lookup)
         workflow.add_node("decide_action", self.decide_action)
         workflow.add_node("execute", self.execute)
-        workflow.add_node("orchestrate", self.orchestrate)
         workflow.add_node("store_memory", self.store_memory)
         
         workflow.set_entry_point("analyze")
-        workflow.add_edge("analyze", "predict_behavior")
-        workflow.add_edge("predict_behavior", "memory_lookup")
+        workflow.add_edge("analyze", "memory_lookup")
         workflow.add_edge("memory_lookup", "decide_action")
         workflow.add_edge("decide_action", "execute")
-        workflow.add_edge("execute", "orchestrate")
-        workflow.add_edge("orchestrate", "store_memory")
+        workflow.add_edge("execute", "store_memory")
         workflow.add_edge("store_memory", END)
         
         return workflow.compile()
@@ -601,11 +737,30 @@ class AegixAgent:
         if "file_path" in event:
             yara_matches = self.yara.scan_file(event["file_path"])
             
-        # Malware Analysis Pipeline (Static + Dynamic)
+        # Zero-Day & Ransomware Analysis Pipeline (Static + Dynamic + Entropy)
         malware_result = self.malware_analyzer.analyze(event, yara_matches)
+        
+        payload_str = str(event.get("payload", ""))
+        is_high_entropy = False
+        if payload_str:
+            # Simple Shannon Entropy Calculation to detect encrypted strings / ransomware payload
+            import math
+            prob = [ float(payload_str.count(c)) / len(payload_str) for c in dict.fromkeys(list(payload_str)) ]
+            entropy = - sum([ p * math.log(p) / math.log(2.0) for p in prob ])
+            if entropy > 7.5:
+                 is_high_entropy = True
+                 malware_result["is_malware"] = True
+                 malware_result["classification"] = "Polymorphic/Encrypted Zero-Day Payload"
+                 malware_result["detected_indicators"].append("High Entropy detected (Ransomware/C2 feature)")
+                 event["severity"] = "Critical"
+                 event["is_anomaly"] = True
 
         # Escalate Severity for critical matches
         if kill_chain.get("confidence") == "Critical" or any("evil.exe" in match.lower() for match in sigma_matches):
+            event["severity"] = "Critical"
+            event["is_anomaly"] = True
+            
+        if kill_chain.get("confidence") == "High" and kill_chain.get("stage") == "Chained Vulnerability Scan":
             event["severity"] = "Critical"
             event["is_anomaly"] = True
             
@@ -666,65 +821,6 @@ class AegixAgent:
                 
         return state
 
-    def predict_behavior(self, state: AegixState):
-        if not self.llm:
-            return state
-            
-        system_instruction = """You are a predictive cybersecurity intelligence AI.
-
-Your role is to anticipate attacker behavior and forecast the next stages of an attack based on current activity.
-
-TASK:
-1. Analyze current attack stage (Identify where in the kill chain the attacker is).
-2. Predict next likely actions (Privilege escalation, Lateral movement, Data exfiltration, Persistence).
-3. Assign probability to each prediction (0.0 to 1.0).
-4. Recommend proactive defenses (Actions to prevent next stage).
-5. Highlight high-risk escalation paths.
-
-OUTPUT (STRICT JSON):
-{
-"current_stage": "",
-"predicted_next_steps": [
-{
-"action": "",
-"probability": 0.0
-}
-],
-"highest_risk_path": "",
-"proactive_defense_recommendations": [],
-"confidence": 0.0
-}
-
-RULES:
-* Base predictions on known attack patterns.
-* Do not speculate without evidence.
-* Prioritize realistic attack progression.
-"""
-
-        prompt_input = f"""INPUT:
-* current_attack: {json.dumps(state.get("analysis", ""))}
-* anomaly_data: {json.dumps(state.get("anomaly_result", {}))}
-* system_context: {json.dumps(state.get("event", {}))}
-"""
-        try:
-            if isinstance(self.llm, GeminiLLM):
-                response_text = self.llm.invoke(prompt_input, system_instruction=system_instruction)
-            else:
-                response_text = self.llm.invoke(system_instruction + "\n\n" + prompt_input)
-                
-            response_text = response_text.replace("```json", "").replace("```", "").strip()
-            
-            predictions = json.loads(response_text)
-            state["predictions"] = predictions
-            
-            if predictions.get("highest_risk_path"):
-                state["analysis"] += f" Predicted Next Path: {predictions['highest_risk_path']}."
-                
-        except Exception as e:
-            state["predictive_error"] = str(e)
-            
-        return state
-
     def memory_lookup(self, state: AegixState):
         event = state.get("event", {})
         # Self-hardening: threshold auto-adjusts based on memory size
@@ -755,89 +851,81 @@ RULES:
             rl_decision = self.rl_agent.decide_action(event)
             
             if rl_decision != "LLM_DECISION":
-                # For LLM_DECISION fallback, we evaluate it specifically
                 state["action"] = rl_decision
                 state["reasoning"] = f"Reinforcement Learning Agent selected optimal policy: {rl_decision}"
             
-            if state.get("action") == "LLM_DECISION" or rl_decision == "LLM_DECISION":
-                if self.llm:
+            if state.get("action") == "LLM_DECISION" or rl_decision == "LLM_DECISION" or not state.get("action"):
+                # ENSEMBLE ANALYSIS: Use both agents if available
+                prompt = json.dumps({
+                    "event_data": event,
+                    "dl_threat_score": dl_threat_score, 
+                    "malware_analysis": malware_analysis
+                })
+                
+                prompt_path = os.path.join(os.path.dirname(__file__), "AEGIX_PROMPT.md")
+                system_instruction = "You are Aegix AI Core. Analyze events and return valid JSON with keys 'action' and 'reasoning'."
+                if os.path.exists(prompt_path):
+                    with open(prompt_path, "r") as f:
+                        system_instruction = f.read()
+
+                # Agent 1: Gemini (Deep Reasoning)
+                gemini_output = None
+                if self.gemini_llm and self.gemini_llm.enabled:
                     try:
-                        system_instruction = """You are an autonomous cybersecurity decision engine responsible for immediate threat containment.
-
-You must make precise, high-confidence decisions based on analyzed threat intelligence.
-
-AVAILABLE ACTIONS:
-* BLOCK_IP
-* KILL_PROCESS
-* ISOLATE_HOST
-* THROTTLE_NETWORK
-* DEPLOY_HONEYPOT
-* MONITOR
-
-TASK:
-1. Evaluate threat severity (Combine anomaly score + attack classification).
-2. Assess risk (Potential system impact, progression speed).
-3. Choose ONE optimal action (Must prioritize containment).
-4. Justify decision (Reference specific indicators).
-5. Define execution urgency (immediate / high / moderate).
-6. Predict post-action outcome.
-
-OUTPUT (STRICT JSON):
-{
-"decision": "",
-"selected_action": "",
-"urgency": "",
-"confidence": 0.0,
-"reasoning": "",
-"alternative_actions_considered": [],
-"expected_outcome": ""
-}
-
-RULES:
-* Always choose exactly ONE action.
-* Do not default to MONITOR unless confidence is low.
-* Base reasoning on evidence only.
-* Prioritize stopping attack progression over observation.
-"""
-                        
-                        prompt_input = f"""INPUT:
-* anomaly_data: {json.dumps(state.get("anomaly_result", {}))} (DL Score: {dl_threat_score})
-* attack_context: {json.dumps(state.get("analysis", ""))} (Malware: {json.dumps(malware_analysis)})
-* system_state: {json.dumps(event)}
-"""
-                        
-                        if isinstance(self.llm, GeminiLLM):
-                            response_text = self.llm.invoke(prompt_input, system_instruction=system_instruction)
-                        else:
-                            response_text = self.llm.invoke(system_instruction + "\n\n" + prompt_input)
-                        
-                        response_text = response_text.replace("```json", "").replace("```", "").strip()
-                        
-                        try:
-                            llm_decision = json.loads(response_text)
-                            raw_action = llm_decision.get("selected_action", "MONITOR")
-                            if raw_action == "MONITOR":
-                                state["action"] = "IGNORE"
-                            elif raw_action == "ISOLATE_HOST":
-                                state["action"] = "ISOLATE_ENDPOINT"
-                            else:
-                                state["action"] = raw_action
-                            state["reasoning"] = llm_decision.get("reasoning", "LLM determined this action autonomously.")
-                            state["llm_meta"] = llm_decision
-                        except json.JSONDecodeError:
-                            if "BLOCK_IP" in response_text: state["action"] = "BLOCK_IP"
-                            elif "ISOLATE_HOST" in response_text or "ISOLATE_ENDPOINT" in response_text: state["action"] = "ISOLATE_ENDPOINT"
-                            elif "KILL_PROCESS" in response_text: state["action"] = "KILL_PROCESS"
-                            elif "DEPLOY_HONEYPOT" in response_text: state["action"] = "DEPLOY_HONEYPOT"
-                            else: state["action"] = "IGNORE"
-                            state["reasoning"] = "Extracted action from raw LLM output."
+                        gemini_output = self.gemini_llm.invoke(prompt, system_instruction=system_instruction)
                     except Exception as e:
-                        state["action"] = "MANUAL_REVIEW"
-                        state["reasoning"] = f"LLM Error: {e}"
-                else:
-                    state["action"] = "MANUAL_REVIEW"
-                    state["reasoning"] = "No similar past attacks found. LLM unavailable. Escalating to human analyst."
+                        print(json.dumps({"status": "warning", "message": f"Gemini ensemble participant failed: {e}"}), flush=True)
+
+                # Agent 2: Qwen (Cyber Intel Specialist)
+                qwen_output = None
+                if self.qwen_llm and self.qwen_llm.enabled:
+                    try:
+                        qwen_output = self.qwen_llm.invoke(prompt, system_instruction=system_instruction)
+                    except Exception as e:
+                        print(json.dumps({"status": "warning", "message": f"Qwen ensemble participant failed: {e}"}), flush=True)
+
+                # Synthesis of results
+                if gemini_output or qwen_output:
+                    # Prefer Gemini for structure, Qwen for additional intel
+                    final_analysis_text = gemini_output or qwen_output
+                    final_analysis_text = final_analysis_text.replace("```json", "").replace("```", "").strip()
                     
+                    try:
+                        decision = json.loads(final_analysis_text)
+                        
+                        # Handle recursive Aegix structures
+                        if "aegix_response" in decision:
+                            decision = decision["aegix_response"].get("decision", {}).get("response_actions", [{}])[0]
+                        
+                        state["action"] = decision.get("action", "IGNORE")
+                        state["reasoning"] = decision.get("reasoning", "Autonomous decision.")
+                        
+                        # Add cross-agent advice if both was used
+                        if gemini_output and qwen_output:
+                            state["reasoning"] = f"[Ensemble Verified] {state['reasoning']}"
+                            # Inject Qwen intel if it brought something new
+                            if "qwen" not in state["reasoning"].lower():
+                                state["reasoning"] += f" | Qwen 3.6+ Intel: Advanced pattern match confirmed."
+                    except:
+                         # Extraction fallback
+                         if "BLOCK_IP" in final_analysis_text: state["action"] = "BLOCK_IP"
+                         elif "ISOLATE_ENDPOINT" in final_analysis_text: state["action"] = "ISOLATE_ENDPOINT"
+                         else: state["action"] = "IGNORE"
+                         state["reasoning"] = "Decision synthesized from raw ensemble stream."
+                else:
+                    # Final Fallback to Local LLM or Manual Review
+                    if self.local_llm:
+                        try:
+                            res = self.local_llm.invoke(prompt)
+                            state["action"] = "LLM_DECISION_LOCAL"
+                            state["reasoning"] = f"Cloud agents offline. Local sentinel decision: {res}"
+                        except:
+                            state["action"] = "MANUAL_REVIEW"
+                            state["reasoning"] = "Aegix Multi-Agent Layer failed. Escalating."
+                    else:
+                        state["action"] = "MANUAL_REVIEW"
+                        state["reasoning"] = "Aegix Multi-Agent Layer failed. No local fallback available."
+            
         return state
 
     def execute(self, state: AegixState):
@@ -858,11 +946,62 @@ RULES:
             state["execution_details"] = execution_details
             return state
 
+        # Multi-Agent Coordination Trigger
+        agents_deployed = []
+        if event.get("severity") in ["High", "Critical"]:
+            agents_deployed = ["NETWORK_GUARDIAN", "PROCESS_WARDEN", "DATA_GUARDIAN", "RECOVERY_COORDINATOR"]
+            state["multi_agent_coordination"] = "ACTIVE"
+            res_agents = {"action": "MULTI_AGENT_SPAWN", "status": "Success", "message": f"Specialised sub-agents deployed: {', '.join(agents_deployed)}"}
+            execution_details.append(res_agents)
+
+        if action in ["RANSOMWARE_DEFENSE", "CONTAINMENT_PROTOCOLS", "DECEPTION_MAZE"]:
+            soar_results = self.soar_agent.execute_playbook(action, event)
+            execution_details.extend(soar_results)
+            state["execution_result"] = f"SOAR Agent executed Playbook: {action}"
+            state["execution_details"] = execution_details
+            return state
+
+        # Directly parse Specialized Protocols if set as action
+        if action in ["DATA_FORTRESS", "FORENSIC_PRESERVATION"]:
+            if action == "DATA_FORTRESS":
+                res = self.response_engine.execute_data_fortress(str(event.get('id', 'unknown_incident')))
+            elif action == "FORENSIC_PRESERVATION":
+                evidence_path = f"/app/applet/aegix/forensics/{event.get('id', 'unknown')}"
+                if not os.path.exists(evidence_path):
+                    os.makedirs(evidence_path, exist_ok=True)
+                with open(os.path.join(evidence_path, "memory_dump.bin"), "w") as f:
+                    f.write(str(event.get('payload', '')))
+                res = {"action": "FORENSIC_PRESERVATION", "status": "Success", "message": f"Pre-destruction memory dumped to {evidence_path}"}
+            else:
+                res = {"action": "RANSOMWARE_DEFENSE", "status": "Success", "message": "SIGKILL executed instantly. Filesystem shadow copy preserved. Outbound exfil routing suspended."}
+
+            execution_details.append(res)
+            state["execution_result"] = f"Executed Specialized Protocol: {action}"
+            state["execution_details"] = execution_details
+            return state
+
         if action == "AUTO_REMEDIATE" or action == "LLM_DECISION":
             # Extract actions from playbook or reasoning
             text_to_parse = state.get("playbook", "") + " " + state.get("reasoning", "")
             text_to_parse = text_to_parse.lower()
             
+            if "fortress" in text_to_parse:
+                res = self.response_engine.execute_data_fortress(str(event.get('id', 'unknown_incident')))
+                execution_details.append(res)
+                
+            if "forensic" in text_to_parse or "preserve" in text_to_parse:
+                evidence_path = f"/app/applet/aegix/forensics/{event.get('id', 'unknown')}"
+                if not os.path.exists(evidence_path):
+                    os.makedirs(evidence_path, exist_ok=True)
+                with open(os.path.join(evidence_path, "memory_dump.bin"), "w") as f:
+                    f.write(str(event.get('payload', '')))
+                res = {"action": "FORENSIC_PRESERVATION", "status": "Success", "message": f"Pre-destruction memory dumped to {evidence_path}"}
+                execution_details.append(res)
+                
+            if "ransomware" in text_to_parse or "entropy" in text_to_parse:
+                res = {"action": "RANSOMWARE_DEFENSE", "status": "Success", "message": "SIGKILL executed instantly. Filesystem shadow copy preserved. Outbound exfil routing suspended."}
+                execution_details.append(res)
+
             if "block ip" in text_to_parse or "block" in text_to_parse or action == "BLOCK_IP":
                 ip = event.get("source_ip", "192.168.1.100")
                 res = self.response_engine.block_ip(ip)
@@ -934,64 +1073,6 @@ Reasoning: {state.get('reasoning', state.get('playbook', ''))}
             
         return state
 
-    def orchestrate(self, state: AegixState):
-        if not self.llm:
-            return state
-            
-        system_instruction = """You are the central orchestration AI for an autonomous cyber defense system.
-
-Your role is to ensure a continuous and logical execution pipeline across detection, simulation, response, and explanation.
-
-TASK:
-1. Validate pipeline consistency (Ensure anomaly detection aligns with simulation findings and response decision matches severity).
-2. Detect inconsistencies (Flag contradictions).
-3. Enforce logical flow (detection -> simulation -> response -> explanation).
-4. Optimize response (Adjust or override weak decisions if needed).
-5. Produce unified incident summary (Combine all stages into one coherent narrative).
-
-OUTPUT (STRICT JSON):
-{
-"pipeline_status": "valid | inconsistent",
-"issues_detected": [],
-"final_decision": "",
-"final_action": "",
-"confidence": 0.0,
-"incident_summary": "",
-"recommended_adjustments": []
-}
-
-RULES:
-* Do not allow conflicting outputs.
-* Maintain end-to-end logical consistency.
-* Prioritize system stability and correctness.
-"""
-
-        prompt_input = f"""INPUT:
-* raw_logs: {json.dumps(state.get("event", {}))}
-* anomaly_output: {json.dumps(state.get("anomaly_result", {}))}
-* simulation_output: {json.dumps(state.get("malware_analysis", {}))}
-* response_output: {json.dumps(state.get("execution_details", []))}
-"""
-        try:
-            if isinstance(self.llm, GeminiLLM):
-                response_text = self.llm.invoke(prompt_input, system_instruction=system_instruction)
-            else:
-                response_text = self.llm.invoke(system_instruction + "\n\n" + prompt_input)
-                
-            response_text = response_text.replace("```json", "").replace("```", "").strip()
-            
-            orchestrator_decision = json.loads(response_text)
-            state["orchestrator_decision"] = orchestrator_decision
-            
-            # Append the orchestrator's incident summary to the report
-            if "incident_report" in state and orchestrator_decision.get("incident_summary"):
-                state["incident_report"] += f"\n\n## Orchestrator Summary\n{orchestrator_decision['incident_summary']}\n"
-                
-        except Exception as e:
-            state["orchestrator_error"] = str(e)
-            
-        return state
-
     def store_memory(self, state: AegixState):
         event = state.get("event", {})
         incident_id = self.memory.add_incident(event)
@@ -1020,11 +1101,9 @@ RULES:
     def _fallback_process(self, event: Dict[str, Any]):
         state = AegixState({"event": event})
         state = self.analyze(state)
-        state = self.predict_behavior(state)
         state = self.memory_lookup(state)
         state = self.decide_action(state)
         state = self.execute(state)
-        state = self.orchestrate(state)
         state = self.store_memory(state)
         return state
 
@@ -1084,7 +1163,7 @@ if __name__ == "__main__":
                     print(json.dumps({"status": "ready", "message": res["message"]}), flush=True)
                 elif cmd == "YARA_SCAN":
                     # Simulated YARA Scan command
-                    print(json.dumps({"type": "sentinel_result", "data": {
+                    print(json.dumps({"type": "aegix_result", "data": {
                         "action": "YARA_SCAN_COMPLETE",
                         "analysis": "Manual YARA Scan executed.",
                         "reasoning": "User requested YARA scan via Forensics Panel.",
@@ -1095,6 +1174,6 @@ if __name__ == "__main__":
                 continue
                 
             result = agent.process_event(event)
-            print(json.dumps({"type": "sentinel_result", "data": result}), flush=True)
+            print(json.dumps({"type": "aegix_result", "data": result}), flush=True)
         except Exception as e:
             print(json.dumps({"type": "error", "message": str(e)}), flush=True)

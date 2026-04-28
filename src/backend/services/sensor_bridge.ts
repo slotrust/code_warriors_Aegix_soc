@@ -4,43 +4,44 @@ import { fileURLToPath } from 'url';
 import { systemService } from './system_service.js';
 import { logService } from './log_service.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// handled
 
 export const sensorBridge = {
   start: () => {
-    console.log("Initializing Python Sensor Daemon...");
     
-    // Attempt to install dependencies
-    try {
-      console.log("Checking Python dependencies...");
-      const installCmd = 'python3 -m pip install psutil watchdog scapy --break-system-packages || (wget -qO- https://bootstrap.pypa.io/get-pip.py | python3 - --break-system-packages && python3 -m pip install psutil watchdog scapy --break-system-packages)';
-      execSync(installCmd, { stdio: 'ignore' });
-      console.log("Python dependencies check complete.");
-    } catch (e) {
-      console.log("Failed to install Python dependencies. Daemon will run with degraded features.");
-    }
+    // Attempt to install dependencies asynchronously to not block server startup
+    const installCmd = 'python3 -m pip install psutil watchdog scapy --break-system-packages || (wget -qO- https://bootstrap.pypa.io/get-pip.py | python3 - --break-system-packages && python3 -m pip install psutil watchdog scapy --break-system-packages)';
+    
+    let spawnPython: (command: string) => void;
 
-    const scriptPath = path.join(__dirname, '../sensors/sensor_daemon.py');
+    import('child_process').then(({ exec }) => {
+      exec(installCmd, (error) => {
+        // Start python process after dependencies are checked/installed
+        spawnPython('python3');
+      });
+    }).catch(() => {
+      // Fallback if import fails
+      spawnPython('python3');
+    });
+
+    const scriptPath = path.join(process.cwd(), 'src/backend/sensors/sensor_daemon.py');
     
     // Attempt to spawn with python3, fallback to python
-    const spawnPython = (command: string) => {
+    spawnPython = (command: string) => {
       const pythonProcess = spawn(command, [scriptPath]);
 
       pythonProcess.on('error', (err: any) => {
-        if (err.code === 'ENOENT') {
-          if (command === 'python3') {
-            console.log("python3 not found, trying python...");
-            spawnPython('python');
-          } else {
-            console.error("Neither python3 nor python found. Sensor Daemon will not start.");
-          }
-        } else {
-          console.error(`Failed to start Python Sensor Daemon: ${err.message}`);
+        console.error("sensorBridge Python Error:", err.message);
+        if (err.code === 'ENOENT' && command === 'python3') {
+          spawnPython('python');
         }
       });
 
       let buffer = '';
+      pythonProcess.stdout?.on('error', err => console.error("sensorBridge stdout error", err));
+      pythonProcess.stderr?.on('error', err => console.error("sensorBridge stderr error", err));
+      pythonProcess.stdin?.on('error', err => console.error("sensorBridge stdin error", err));
+
       pythonProcess.stdout?.on('data', async (data) => {
         buffer += data.toString();
         let newlineIndex;
@@ -140,28 +141,22 @@ export const sensorBridge = {
             
             // Also log to console for debugging
             if (event.severity >= 5) {
-              console.log(`[SENSOR] ${event.event_type}: ${event.raw_data} (Severity: ${event.severity})`);
             }
           } catch (e) {
             // Not JSON or parse error
-            console.log(`[SENSOR RAW] ${line}`);
           }
         }
       });
 
       pythonProcess.stderr?.on('data', (data) => {
-        console.error(`[SENSOR ERROR] ${data.toString()}`);
       });
 
       pythonProcess.on('close', (code) => {
         if (code !== null) {
-          console.log(`Python Sensor Daemon exited with code ${code}`);
           // Restart after 5 seconds
           setTimeout(sensorBridge.start, 5000);
         }
       });
     };
-
-    spawnPython('python3');
   }
 };

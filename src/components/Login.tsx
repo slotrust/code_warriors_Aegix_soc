@@ -1,3 +1,4 @@
+import { safeStorage } from "../utils/storage";
 import React, { useState } from 'react';
 import { ShieldCheck, Lock, User, AlertCircle, ArrowRight } from 'lucide-react';
 import { api } from '../api/client';
@@ -38,12 +39,12 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: auth?.currentUser?.providerData.map(provider => ({
         providerId: provider.providerId,
         displayName: provider.displayName,
         email: provider.email,
@@ -79,8 +80,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
     try {
       const res = await api.login(username, password);
-      localStorage.setItem('soc_token', res.data.token);
-      localStorage.setItem('soc_user', JSON.stringify(res.data.user));
+      safeStorage.setItem('soc_token', res.data.token);
+      safeStorage.setItem('soc_user', JSON.stringify(res.data.user));
       onLoginSuccess(res.data.user);
     } catch (err) {
       setError(err?.response?.data?.error || 'Login failed. Please check your credentials.');
@@ -92,6 +93,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const handleGoogleSignIn = async () => {
     setError('');
     setIsLoading(true);
+    if (!auth || !googleProvider) {
+      setError('Google Sign-In is disabled. Firebase is not configured.');
+      setIsLoading(false);
+      return;
+    }
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
@@ -139,11 +145,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         isFirebase: true
       };
 
-      localStorage.setItem('soc_user', JSON.stringify(appUser));
+      safeStorage.setItem('soc_user', JSON.stringify(appUser));
       // We might need a token for the backend if the backend still expects one.
       // For now, we can use the Firebase ID token.
       const token = await user.getIdToken();
-      localStorage.setItem('soc_token', token);
+      safeStorage.setItem('soc_token', token);
       
       onLoginSuccess(appUser);
     } catch (err: any) {

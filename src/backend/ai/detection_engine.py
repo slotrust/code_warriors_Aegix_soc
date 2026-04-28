@@ -66,23 +66,60 @@ class SigmaEngine:
         matches = []
         
         # Hardcoded evil.exe rule addition
-        payload = str(event.get("payload", "")).lower()
-        if "evil.exe" in payload or "evil.exe" in event.get("event_type", "").lower():
+        payload_raw = event.get("payload", {})
+        payload_str = str(payload_raw).lower() if isinstance(payload_raw, dict) else str(payload_raw).lower()
+        
+        if "evil.exe" in payload_str or "evil.exe" in event.get("event_type", "").lower():
             matches.append("Critical Malicious Process (evil.exe)")
             
         for rule in self.rules:
             try:
-                selection = rule.get("detection", {}).get("selection", {})
-                is_match = True
+                detection = rule.get("detection", {})
+                selection = detection.get("selection", {})
+                filter_block = detection.get("filter", {})
+                
+                # Check selection (MUST MATCH ALL)
+                is_selected = True
                 for k, v in selection.items():
-                    if event.get(k) != v:
-                        is_match = False
+                    val = self._get_nested(event, k)
+                    if isinstance(v, list):
+                        if val not in v:
+                            is_selected = False
+                            break
+                    elif val != v:
+                        is_selected = False
                         break
-                if is_match and selection:
+                
+                if not is_selected or not selection:
+                    continue
+                
+                # Check filter (IF ANY MATCH, IT'S FILTERED OUT)
+                is_filtered = False
+                if filter_block:
+                    for k, v in filter_block.items():
+                        val = self._get_nested(event, k)
+                        if isinstance(v, list):
+                            if val in v:
+                                is_filtered = True
+                                break
+                        elif val == v:
+                            is_filtered = True
+                            break
+                
+                if not is_filtered:
                     matches.append(rule.get("title", "Unknown Rule"))
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Error matching rule: {e}")
         return matches
+
+    def _get_nested(self, data: Dict[str, Any], path: str) -> Any:
+        parts = path.split('.')
+        for part in parts:
+            if isinstance(data, dict):
+                data = data.get(part)
+            else:
+                return None
+        return data
 
     def add_rule(self, rule_yaml: str):
         if not HAS_YAML:
@@ -424,6 +461,18 @@ class KillChainCorrelator:
             elif "download" in evt_type or "transfer" in evt_type or "exfil" in evt_type or "scp" in payload or "ftp" in payload or "wget" in payload:
                 has_exfil = True
                 
+        # DIMENSION 3: Chained Vulnerability Attack Detection
+        # Detect if 3+ events from the same source in the sliding window (irrespective of severity)
+        is_chained_attack = len(ip_events) >= 3
+
+        if is_chained_attack and not has_exfil and not has_exploit and not has_recon:
+            return {
+                "chain_detected": True,
+                "stage": "Chained Vulnerability Scan",
+                "confidence": "High",
+                "message": f"Chained Vulnerability Attack Detected: {len(ip_events)} events from {source_ip} within sliding window. Escalating."
+            }
+
         if has_recon and has_exploit and has_exfil:
             return {
                 "chain_detected": True,

@@ -20,18 +20,18 @@ router.post("/system-data", async (req, res) => {
 // Protected endpoints for the dashboard
 router.use(authMiddleware);
 
-router.get("/processes", (req, res) => {
+router.get("/processes", async (req, res) => {
   try {
-    const processes = systemService.getProcesses();
+    const processes = await systemService.getProcesses();
     res.json(processes);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch processes" });
   }
 });
 
-router.get("/network", (req, res) => {
+router.get("/network", async (req, res) => {
   try {
-    const network = systemService.getNetworkConnections();
+    const network = await systemService.getNetworkConnections();
     res.json(network);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch network connections" });

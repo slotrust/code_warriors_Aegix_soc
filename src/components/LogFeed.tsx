@@ -164,7 +164,8 @@ export default function LogFeed({ onSelectLog }: LogFeedProps) {
           </thead>
           <tbody className="divide-y divide-soc-border/30">
             <AnimatePresence>
-              {filteredLogs?.map((log: any) => (
+              {filteredLogs?.map((log: any) => {
+                return (
                 <motion.tr
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -183,7 +184,7 @@ export default function LogFeed({ onSelectLog }: LogFeedProps) {
                   <td className="px-4 py-3 font-mono text-soc-cyan text-xs">{log.source_ip}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      {log.event_type === 'ips_action' && <Shield className="w-3 h-3 text-soc-purple" />}
+                       {log.event_type === 'ips_action' && <Shield className="w-3 h-3 text-soc-purple" />}
                       <span className="capitalize font-medium">{log.event_type.replace(/_/g, ' ')}</span>
                     </div>
                   </td>
@@ -207,7 +208,7 @@ export default function LogFeed({ onSelectLog }: LogFeedProps) {
                     )}
                   </td>
                 </motion.tr>
-              ))}
+              )})}
             </AnimatePresence>
             {filteredLogs.length === 0 && (
               <tr>

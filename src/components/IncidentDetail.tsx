@@ -64,6 +64,28 @@ export default function IncidentDetail({ incident, onClose, onAskAI, onForensics
     console.error("Failed to parse payload:", e);
   }
 
+  let details = "";
+  let detailsType = "default";
+  
+  if (payload) {
+    if (payload.cmdline) {
+      details = payload.cmdline;
+      detailsType = "command";
+    } else if (payload.file) {
+      details = `Target: ${payload.file}`;
+      detailsType = "file";
+    } else if (payload.destination) {
+      details = `${payload.protocol} -> ${payload.destination}`;
+      detailsType = "network";
+    } else if (payload.user_agent) {
+      details = payload.user_agent;
+      detailsType = "user_agent";
+    } else if (payload.action) {
+      details = `Action: ${payload.action}`;
+      detailsType = "command";
+    }
+  }
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -146,6 +168,19 @@ export default function IncidentDetail({ incident, onClose, onAskAI, onForensics
                     </div>
                   </div>
                 ))}
+                {details && (
+                  <div className="bg-soc-bg p-3 rounded-xl border border-soc-border col-span-2 md:col-span-3">
+                    <div className="text-[10px] text-soc-muted uppercase font-bold mb-1">Action / Details</div>
+                    <div className="text-sm font-mono text-soc-text break-all whitespace-pre-wrap flex items-start gap-2">
+                      <div className="shrink-0 mt-0.5">
+                        {detailsType === "command" && <span className="text-soc-yellow px-1.5 py-0.5 bg-soc-yellow/10 rounded border border-soc-yellow/20 text-[10px] font-bold">CMD</span>}
+                        {detailsType === "file" && <span className="text-soc-purple px-1.5 py-0.5 bg-soc-purple/10 rounded border border-soc-purple/20 text-[10px] font-bold">FS</span>}
+                        {detailsType === "network" && <span className="text-soc-cyan px-1.5 py-0.5 bg-soc-cyan/10 rounded border border-soc-cyan/20 text-[10px] font-bold">NET</span>}
+                      </div>
+                      <span className="opacity-90">{details}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
 

@@ -11,7 +11,7 @@ export default function LoginChart() {
     return {
       name: `${i.toString().padStart(2, '0')}:00`,
       total: hourData?.count || 0,
-      anomalies: Math.floor((hourData?.count || 0) * (Math.random() * 0.1)) // Mocking anomalies for visual line
+      anomalies: hourData?.anomaly_count || 0 // Replaced mock data with live real data
     };
   });
 

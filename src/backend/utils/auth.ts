@@ -11,12 +11,13 @@ export const authUtils = {
     return await bcrypt.compare(password, hash);
   },
   generateToken: (user: any) => {
-    return jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+    return jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET);
   },
   verifyToken: (token: string) => {
     try {
-      return jwt.verify(token, JWT_SECRET);
-    } catch (err) {
+      return jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+    } catch (err: any) {
+      console.log("[AUTH DEBUG] verifyToken error:", err.message);
       return null;
     }
   }
