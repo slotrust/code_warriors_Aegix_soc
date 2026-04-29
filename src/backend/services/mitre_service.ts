@@ -35,6 +35,13 @@ export const mitreDataset = [
     tactic: 'Lateral Movement',
     description: 'Adversaries may use Valid Accounts to log into a service specifically designed to accept remote connections, such as telnet, SSH, and RDP.',
     keywords: ['ssh', 'rdp', 'smb', 'winrm', 'wmi']
+  },
+  {
+    id: 'T1110',
+    name: 'Brute Force',
+    tactic: 'Credential Access',
+    description: 'Adversaries may use brute force techniques to gain access to accounts when passwords are unknown or when password hashes are obtained.',
+    keywords: ['brute', 'brute-force', 'password', 'login', 'failed', 'auth', 'credential', 'attempt', 'ssh', 'admin']
   }
 ];
 
