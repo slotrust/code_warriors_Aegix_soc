@@ -148,17 +148,6 @@ Sensors → Analyst → LLM (Gemini) → Response + Memory
 Demo Flow
 
 Healthy system → run attack → anomaly detected → LLM explains → process killed → system secured
-
----
-
-### Future
-
-Vector memory + eBPF + multi-device control
-
- Pitch: *“Not just alerts—NovaShield acts in real time.”*
- ----------------------------------------------------------------------------------------------
- # NovaShield AI – Hackathon Progress (All Checkpoints)
-
 ---
 ## Checkpoint 3 (9:00 PM) – Feature Integration
 
