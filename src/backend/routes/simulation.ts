@@ -1,8 +1,27 @@
 import { Router } from "express";
-import { simulationService } from "../services/simulation_service.js";
+import { simulationService, BruteForceResult } from "../services/simulation_service.js";
 import { logService } from "../services/log_service.js";
 
 const router = Router();
+
+/** Persist a representative summary log entry so the SOC dashboard reflects the attack. */
+async function persistSimulationLog(result: BruteForceResult): Promise<void> {
+  const sourceIp = result.logs[0]?.source_ip ?? "203.0.113.45";
+  await logService.processAndSaveLog({
+    source_ip: sourceIp,
+    event_type: "brute_force_simulation",
+    username: result.summary.target_account,
+    status_code: 401,
+    payload: {
+      attack_type: result.attack_type,
+      mitre: result.mitre,
+      total_attempts: result.summary.total_attempts,
+      attempt_rate: result.summary.attempt_rate,
+      indicators: result.indicators,
+      recommended_action: result.recommended_action,
+    },
+  });
+}
 
 /**
  * POST /api/simulation/brute-force
@@ -28,23 +47,7 @@ router.post("/brute-force", async (req, res) => {
       duration,
     });
 
-    // Persist a representative log entry so the SOC dashboard reflects the attack
-    const sourceIp = result.logs[0]?.source_ip ?? "203.0.113.45";
-    await logService.processAndSaveLog({
-      source_ip: sourceIp,
-      event_type: "brute_force_simulation",
-      username: result.summary.target_account,
-      status_code: 401,
-      payload: {
-        attack_type: result.attack_type,
-        mitre: result.mitre,
-        total_attempts: result.summary.total_attempts,
-        attempt_rate: result.summary.attempt_rate,
-        indicators: result.indicators,
-        recommended_action: result.recommended_action,
-      },
-    });
-
+    await persistSimulationLog(result);
     res.json(result);
   } catch (error) {
     console.error("Error in POST /api/simulation/brute-force:", error);
@@ -60,23 +63,7 @@ router.post("/brute-force", async (req, res) => {
 router.get("/brute-force", async (_req, res) => {
   try {
     const result = simulationService.generateBruteForceAttack();
-
-    const sourceIp = result.logs[0]?.source_ip ?? "203.0.113.45";
-    await logService.processAndSaveLog({
-      source_ip: sourceIp,
-      event_type: "brute_force_simulation",
-      username: result.summary.target_account,
-      status_code: 401,
-      payload: {
-        attack_type: result.attack_type,
-        mitre: result.mitre,
-        total_attempts: result.summary.total_attempts,
-        attempt_rate: result.summary.attempt_rate,
-        indicators: result.indicators,
-        recommended_action: result.recommended_action,
-      },
-    });
-
+    await persistSimulationLog(result);
     res.json(result);
   } catch (error) {
     console.error("Error in GET /api/simulation/brute-force:", error);
